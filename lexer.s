@@ -8,6 +8,7 @@
 .equ comment_state, 4
 .equ error_state, 5
 .equ keyword_count, 8
+.equ EOF, -1
 
 
 ; token layout
@@ -42,15 +43,29 @@ _lex:
     bl _fgetc
     mov x22, x0
 
-    bl _isspace
-    mov x20, start_state
+    ; check for eof
+    cmp x22, EOF
+    beq 3f
 
+    ; check for comment state
+    cmp x20, comment_state
+    bne 2f ; if not comment, proceed
+    ; otherwise, check for endline
+2:
+    ; check for space.
+    bl _isspace
+    cbz x0, 1f ; if not space, save to buffer
+    mov x20, start_state ; if space, reset state and loop
     b 0b
 1: ; save to buffer
     str x19, [x21, x23]
     add x23, x23, 1
-    b 0b
+; now try letter
+    mov x0, x22
+    bl _isalpha ; if is alpha, return current token
 
+    b 0b
+3:
     ret
 
 ; string in x0
