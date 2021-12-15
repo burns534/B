@@ -8,7 +8,9 @@ _main:
     ; use x19 for the filehandle
     ; first check argc == 2
     cmp x0, 2
-    bne exit
+    beq 0f
+    ret
+0:
 
     ; allocate stack here
     sub sp, sp, 32
@@ -21,6 +23,7 @@ _main:
     adrp x1, file_options@page
     add x1, x1, file_options@pageoff
     bl _fopen
+
 
     ; file handle in x0
     ;bl _parse
@@ -37,8 +40,6 @@ _main:
     ; restore stack here
     ldp fp, lr, [sp, 16]
     add sp, sp, 32
-
-exit:
     ret
 
 .data
