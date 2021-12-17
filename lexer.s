@@ -1,10 +1,44 @@
 .text
 .p2align 2
 .globl _lex
-.equ INTEGER, 9
-.equ IDENTIFIER, 10
-.equ STRING, 11
 .equ keyword_bytes, 8 * 9
+
+.equ TS_END_PROD, -1
+.equ TS_BREAK, 0
+.equ TS_CONTINUE, 1
+.equ TS_ELSE, 2
+.equ TS_EQ, 3
+.equ TS_IF, 4
+.equ TS_REGISTER, 5
+.equ TS_RETURN, 6
+.equ TS_STRUCT, 7
+.equ TS_WHILE, 8
+.equ TS_INTEGER, 9
+.equ TS_IDENTIFIER, 10
+.equ TS_STRING, 11
+.equ TS_EOF, 12
+.equ TS_CLOSE, 13
+.equ TS_INVALID, 14
+.equ TS_ADD, 15
+.equ TS_SUB, 16
+.equ TS_DIV, 17
+.equ TS_MUL, 18
+.equ TS_MOD, 19
+.equ TS_ASSIGN, 20
+.equ TS_LT, 21
+.equ TS_NOT, 22
+.equ TS_ADR, 23
+.equ TS_OPEN_PAREN, 24
+.equ TS_CLOSE_PAREN, 25
+.equ TS_OPEN_SQ_BRACE, 26
+.equ TS_CLOSE_SQ_BRACE, 27
+.equ TS_OPEN_CURL_BRACE, 28
+.equ TS_CLOSE_CURL_BRACE, 29
+.equ TS_DOT, 30
+.equ TS_SEMICOLON, 31
+.equ TS_COLON, 32
+.equ TS_COMMA, 33
+
 
 ; token layout
 ; type + 0 (unsigned long)
@@ -42,7 +76,8 @@ _lex:
     ; if eof, return null
     cmp w20, -1
     bne 1f
-    mov x0, xzr
+    mov w0, TS_EOF
+    bl _create_token
     b 0f
 1:
     bl _whitespace
@@ -55,42 +90,61 @@ _lex:
 
     ; check for operators
     cmp w20, '+'
+    mov w24, TS_ADD
     beq 1f
     cmp w20, '-'
+    mov w24, TS_SUB
     beq 1f
     cmp w20, '/'
+    mov w24, TS_DIV
     beq 1f
     cmp w20, '*'
+    mov w24, TS_MUL
     beq 1f
     cmp w20, '%'
+    mov w24, TS_MOD
     beq 1f
     cmp w20, '='
+    mov w24, TS_ASSIGN
     beq 1f
     cmp w20, '<'
+    mov w24, TS_LT
     beq 1f
     cmp w20, '!'
+    mov w24, TS_NOT
     beq 1f
     cmp w20, '&'
+    mov w24, TS_ADR
     beq 1f
     cmp w20, '('
+    mov w24, TS_OPEN_PAREN
     beq 1f
     cmp w20, ')'
+    mov w24, TS_CLOSE_PAREN
     beq 1f
     cmp w20, '{'
+    mov w24, TS_OPEN_CURL_BRACE
     beq 1f
     cmp w20, '}'
+    mov w24, TS_CLOSE_CURL_BRACE
     beq 1f
     cmp w20, '['
+    mov w24, TS_OPEN_SQ_BRACE
     beq 1f
     cmp w20, ']'
+    mov w24, TS_CLOSE_SQ_BRACE
     beq 1f
     cmp w20, '.'
+    mov w24, TS_DOT
     beq 1f
     cmp w20, ';'
+    mov w24, TS_SEMICOLON
     beq 1f
     cmp w20, ':'
+    mov w24, TS_COLON
     beq 1f
     cmp w20, ','
+    mov w24, TS_COMMA
     beq 1f
 
     bl _error
@@ -100,15 +154,12 @@ _lex:
     strb w20, [x21]
     mov x22, 1 ; buffer index
 
-    ; store current character in w24
-    mov w24, w20
-
     ; get next character
     mov x0, x19
     bl _fgetc
     mov w20, w0
 
-    ; create operator token with previous character as type
+    ; create operator token with appropriate type which is stored in w24
     ; now return token will be in x0 as it should be
     mov w0, w24
     bl _create_token
@@ -163,7 +214,7 @@ _integer_token:
     mov x0, xzr ; return value null if we don't create token
     cbz x22, 2f ; if buffer length is zero, return
     ; generate token
-    mov x0, INTEGER
+    mov x0, TS_INTEGER
     bl _create_token
 2:
     ldp fp, lr, [sp], 16
@@ -197,7 +248,7 @@ _identifier_token:
     cmp x0, -1
     bne 3f
 
-    mov x0, IDENTIFIER
+    mov x0, TS_IDENTIFIER
 3:
     bl _create_token
 2:
@@ -225,7 +276,7 @@ _string_token:
     bl _fgetc
     mov w20, w0
     ; generate token
-    mov x0, STRING
+    mov x0, TS_STRING
     bl _create_token
 2:
     ldp fp, lr, [sp], 16
@@ -356,6 +407,7 @@ buffer: .skip 256 ; for buffer
 current_char: .byte 0
 token: .quad 0, 0
 
+; 9 keywords
 .p2align 3
 keywords:
     .quad break

@@ -8,11 +8,10 @@
 
 .p2align 3
 
-// stack requires 16 bytes.
-// layout as follows
-// word count + 0
-// word capacity + 4
-// quad data + 8
+; stack requires 16 bytes.
+; word count + 0
+; word capacity + 4
+; quad data + 8
 
 ; return stack in x0
 _create_stack:
@@ -88,12 +87,13 @@ _pop_stack:
     cbnz w8, 0f
     ret
 0:
-    sxtw x8, w8 ; sign extend word
     ; load data pointer
     ldr x9, [x0, 8]
     ; decrement count and store
     sub w10, w8, 1
     str w10, [x0]
+    ; sign extend word for return value
+    sxtw x8, w10
     ; access value at address, quad alignment
     ldr x0, [x9, x8, lsl 3]
     ret
@@ -102,6 +102,7 @@ _pop_stack:
 _top_stack:
     ; load current count
     ldr w8, [x0]
+    sub w8, w8, 1
     sxtw x8, w8
     ldr x9, [x0, 8]
     ldr x0, [x9, x8, lsl 3]
