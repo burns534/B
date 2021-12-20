@@ -1,33 +1,40 @@
 .text
 .p2align 2
 .globl _lex
-.equ keyword_bytes, 8 * 9
-
+.equ keyword_bytes, 8 * 8
 .equ TS_END_PROD, -1
 .equ TS_BREAK, 0
 .equ TS_CONTINUE, 1
 .equ TS_ELSE, 2
-.equ TS_EQ, 3
-.equ TS_IF, 4
-.equ TS_REGISTER, 5
-.equ TS_RETURN, 6
-.equ TS_STRUCT, 7
-.equ TS_WHILE, 8
-.equ TS_INTEGER, 9
-.equ TS_IDENTIFIER, 10
-.equ TS_STRING, 11
-.equ TS_EOF, 12
-.equ TS_CLOSE, 13
-.equ TS_INVALID, 14
-.equ TS_ADD, 15
-.equ TS_SUB, 16
-.equ TS_DIV, 17
-.equ TS_MUL, 18
-.equ TS_MOD, 19
-.equ TS_ASSIGN, 20
-.equ TS_LT, 21
+.equ TS_IF, 3
+.equ TS_REGISTER, 4
+.equ TS_RETURN, 5
+.equ TS_STRUCT, 6
+.equ TS_WHILE, 7
+
+.equ TS_INTEGER, 8
+.equ TS_IDENTIFIER, 9
+.equ TS_STRING, 10
+
+.equ TS_EOF, 11
+.equ TS_CLOSE, 12
+.equ TS_INVALID, 13
+
+.equ TS_ASSIGN, 14
+
+.equ TS_EQ, 15
+.equ TS_LT, 16
+
+.equ TS_ADD, 17
+.equ TS_SUB, 18
+
+.equ TS_DIV, 19
+.equ TS_MUL, 20
+.equ TS_MOD, 21
+
 .equ TS_NOT, 22
 .equ TS_ADR, 23
+
 .equ TS_OPEN_PAREN, 24
 .equ TS_CLOSE_PAREN, 25
 .equ TS_OPEN_SQ_BRACE, 26
@@ -76,7 +83,7 @@ _lex:
     ; if eof, return null
     cmp w20, -1
     bne 1f
-    mov w0, TS_EOF
+    mov x0, TS_EOF
     bl _create_token
     b 0f
 1:
@@ -112,6 +119,9 @@ _lex:
     beq 1f
     cmp w20, '!'
     mov w24, TS_NOT
+    beq 1f
+    cmp w20, '?'
+    mov w24, TS_EQ
     beq 1f
     cmp w20, '&'
     mov w24, TS_ADR
@@ -161,7 +171,7 @@ _lex:
 
     ; create operator token with appropriate type which is stored in w24
     ; now return token will be in x0 as it should be
-    mov w0, w24
+    sxtw x0, w24
     bl _create_token
 0:
 
@@ -362,10 +372,10 @@ _keyword:
     add sp, sp, 32
     ret
 
-
+; I'm not sure this ever worked right...
 ; accept type in as quad in x0
 ; return token in x0
-_create_token:
+_create_l1_token:
     sub sp, sp, 48
     stp fp, lr, [sp, 32]
     stp x27, x28, [sp, 16]
@@ -384,7 +394,7 @@ _create_token:
     str xzr, [x21, x22]
     ; allocate memory plus newline
     add x27, x22, 1
-    bl _malloc
+    bl _malloc ; why is malloc's argument the type of the token?
     mov x28, x0 ; address of new memory location in x28
     mov x1, x21 ; buffer
     mov x2, x27 ; max copy length
@@ -400,12 +410,48 @@ _create_token:
     add sp, sp, 48
     ret
 
+; accept type in as quad in x0
+; return token in x0
+_create_token:
+    stp x26, x27, [sp, -32]!
+    stp fp, lr, [sp, 16]
+    add fp, sp, 16
+
+    mov x27, x0 ; save arg temporarily
+
+    ; allocate the token memory with malloc and put in x26
+    mov x0, 16
+    bl _malloc
+    mov x26, x0
+
+    str x27, [x26] ; store type in token + 0
+
+    ; allocate memory for buffer
+    ; x21 is buffer, x22 is length
+    ; null terminate string first
+    str xzr, [x21, x22]
+    ; allocate memory plus newline
+    add x0, x22, 1
+    bl _malloc
+    mov x27, x0 ; save string address to x27
+    mov x1, x21 ; buffer
+    add x2, x22, 1 ; max copy length ; this may be a problem
+    bl ___strcpy_chk ; copy buffer to new memory including null char
+
+    str x27, [x26, 8] ; store pointer to string in token + 8
+    mov x22, xzr ; buffer length to zero
+    mov x0, x26 ; return pointer to token memory
+
+    ldp fp, lr, [sp, 16]
+    ldp x26, x27, [sp], 32
+    ret
+
 .data
 .p2align 3
 
 buffer: .skip 256 ; for buffer
 current_char: .byte 0
-token: .quad 0, 0
+token: .quad 0, 0 ; this was for when the parser was ll1
 
 ; 9 keywords
 .p2align 3
@@ -413,7 +459,6 @@ keywords:
     .quad break
     .quad continue
     .quad else
-    .quad eq
     .quad if
     .quad register
     .quad return
@@ -423,7 +468,6 @@ keywords:
 break: .asciz "break"
 continue: .asciz "continue"
 else: .asciz "else"
-eq: .asciz "eq"
 if: .asciz "if"
 register: .asciz "register"
 return: .asciz "return"

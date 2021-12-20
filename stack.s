@@ -5,6 +5,7 @@
 .globl _top_stack
 
 .equ DEFAULT_STACK_CAP, 8 * 8 ; 8 quads
+.equ STACK_SIZE, 4 + 4 + 8
 
 .p2align 3
 
@@ -15,35 +16,36 @@
 
 ; return stack in x0
 _create_stack:
-    sub sp, sp, 32
+    str x19, [sp, -32]!
     stp fp, lr, [sp, 16]
-    str x19, [sp]
     add fp, sp, 16
-    mov x0, 16
-    mov x1, 1
-    bl _calloc
-    ; initialize to default capacity
+    ; initialize memory to zero for
+    mov x0, STACK_SIZE
+    bl _malloc
+    mov x19, x0 ; store for later in x19
+
+    str wzr, [x0] ; set count to zero
+
     mov w1, DEFAULT_STACK_CAP
-    str w1, [x0, 4]
-    ; store stack in x19
-    mov x19, x0
+    str w1, [x0, 4] ; set capacity
+
     ; allocate data
     mov w0, w1
     bl _malloc
     str x0, [x19, 8] ; assign pointer to stack structure
-    mov x0, x19 ; return pointer
-    ldr x19, [sp]
+    mov x0, x19 ; return stack pointer from this procedure
+
     ldp fp, lr, [sp, 16]
-    add sp, sp, 32
+    ldr x19, [sp], 32
     ret
 
 ; accept stack in x0
 ; quad value in x1
 _push_stack:
-    sub sp, sp, 32
+    stp x19, x20, [sp, -32]!
     stp fp, lr, [sp, 16]
-    stp x19, x20, [sp]
     add fp, sp, 16
+
     mov x19, x0 ; use x19 for stack
     mov x20, x1 ; use x20 for value
 
@@ -74,9 +76,8 @@ _push_stack:
     add x1, x1, 1
     str w1, [x19]
 
-    ldp x19, x20, [sp]
     ldp fp, lr, [sp, 16]
-    add sp, sp, 32
+    ldp x19, x20, [sp], 32
     ret
 ; accept stack in x0
 ; return value in x0
@@ -92,7 +93,7 @@ _pop_stack:
     ; decrement count and store
     sub w10, w8, 1
     str w10, [x0]
-    ; sign extend word for return value
+    ; sign extend word for return
     sxtw x8, w10
     ; access value at address, quad alignment
     ldr x0, [x9, x8, lsl 3]
