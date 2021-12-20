@@ -1,3 +1,5 @@
+#ifndef DEBUG_H
+#define DEBUG_H
 #include <stdio.h>
 #include "Token.h"
 
@@ -19,10 +21,4 @@ char * token_type_to_string(unsigned long type) {
     return token_types[type];
 }
 
-// int main() {
-//     unsigned long *token = malloc(2 * sizeof(unsigned long));
-//     *token = 8;
-//     *(char **)(token + 1) = "hello world!";
-//     printToken(token);
-//     return 0;
-// }
+#endif

@@ -30,18 +30,22 @@ static void print_stack(Stack *s) {
 
 int main(int argc, char **argv) {
     FILE *f = fopen(argv[1], "r");
-    Stack *ss = create_stack();
-    Token *t = NULL;
-    // while (!feof(f)) {
-    //     // 
-    // }
+    // Stack *ss = create_stack();
+    // Token *t = NULL;
+    // // while (!feof(f)) {
+    // //     // 
+    // // }
 
-    for (int i = 0; i < 20; i++) {
-        push_stack(ss, i);
-        printf("top: %d\n", top_stack(ss));
-    }
+    // for (int i = 0; i < 20; i++) {
+    //     push_stack(ss, i);
+    //     printf("top: %d\n", top_stack(ss));
+    // }
+    fprintf(f, "string %d", atoi(argv[2]));
     fclose(f);
 
+
+
+    // printf("result: %ld\n", atol(argv[1]) / 41254820508);
     
 
 

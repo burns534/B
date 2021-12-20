@@ -1,4 +1,5 @@
 #include "Token.h"
+#include "debug.h"
 #include <stdio.h>
 
 // E ::= M E'
@@ -55,7 +56,7 @@ typedef enum {
 
 } Symbol;
 
-char * symbol_to_string(Symbol s) {
+static char * symbol_to_string(Symbol s) {
     switch (s) {
         case NTS_E: return "E";
         case NTS_EP: return "EP";
@@ -126,9 +127,8 @@ static Symbol * get_production(int top, Token *t) {
 #include <string.h>
 #include <ctype.h>
 
+
 // from debug.c
-void print_token(Token *);
-char * token_type_to_string(size_t);
 // lexer.s
 Token * lex(FILE *handle);
 // stack.s
