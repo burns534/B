@@ -15,24 +15,23 @@ Lloh0:
 Lloh1:
 	add	x1, x1, l_.str@PAGEOFF
 	bl	_fopen
-	mov	x20, x0
-	ldr	x0, [x19, #16]
-	bl	_atoi
-                                        ; kill: def $w0 killed $w0 def $x0
-	str	x0, [sp]
+	ldr	x8, [x19, #8]
 Lloh2:
-	adrp	x1, l_.str.1@PAGE
+	adrp	x9, l_.str.2@PAGE
 Lloh3:
+	add	x9, x9, l_.str.2@PAGEOFF
+	stp	x8, x9, [sp]
+Lloh4:
+	adrp	x1, l_.str.1@PAGE
+Lloh5:
 	add	x1, x1, l_.str.1@PAGEOFF
-	mov	x0, x20
 	bl	_fprintf
-	mov	x0, x20
-	bl	_fclose
 	mov	w0, #0
 	ldp	x29, x30, [sp, #32]             ; 16-byte Folded Reload
 	ldp	x20, x19, [sp, #16]             ; 16-byte Folded Reload
 	add	sp, sp, #48                     ; =48
 	ret
+	.loh AdrpAdd	Lloh4, Lloh5
 	.loh AdrpAdd	Lloh2, Lloh3
 	.loh AdrpAdd	Lloh0, Lloh1
                                         ; -- End function
@@ -41,6 +40,9 @@ l_.str:                                 ; @.str
 	.asciz	"r"
 
 l_.str.1:                               ; @.str.1
-	.asciz	"string %d"
+	.asciz	"%s%s\n"
+
+l_.str.2:                               ; @.str.2
+	.asciz	"hello"
 
 .subsections_via_symbols

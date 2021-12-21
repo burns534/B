@@ -25,12 +25,7 @@ static void print_stack(Stack *s) {
 }
 
 // emitter.s
-void emit_add(FILE *);
-void emit_sub(FILE *);
-void emit_mul(FILE *);
-void emit_div(FILE *);
-void static_load(FILE *, char *, long);
-void stack_load(FILE *, long, long);
+void emit_bin(FILE *, Token *, Token *, Token *);
 long precedence(long);
 
 int main (int argc, char **argv) {
@@ -50,20 +45,25 @@ int main (int argc, char **argv) {
   
     Token *t = NULL;
     while (((t = lex(infile))->type != TS_EOF)) {
-        print_token(t);
+        // print_token(t);
         if (t->type > 13 && t->type < 22) { // is operator
-            while (top_stack(opstack) && precedence(((Token *)top_stack(opstack))->type) >= precedence(t->type))
-                push_stack(outstack, pop_stack(opstack));
+            while (top_stack(opstack) && precedence(((Token *)top_stack(opstack))->type) >= precedence(t->type)) {
+                // emit asm for operands to be in proper registers
+                emit_bin(outfile, pop_stack(opstack), pop_stack(outstack), pop_stack(outstack));
+            }
             push_stack(opstack, t);
-        } else if (t->type == TS_INTEGER || t->type == TS_IDENTIFIER ) {
+        } else if (t->type == TS_INTEGER || t->type == TS_IDENTIFIER) {
             push_stack(outstack, t);
         }
     }
 
-    while (top_stack(opstack)) push_stack(outstack, pop_stack(opstack));
+    while (top_stack(opstack)) {
+        // emit asm for operands before this call
+        emit_bin(outfile, pop_stack(opstack), pop_stack(outstack), pop_stack(outstack));
+    }
 
-    print_stack(outstack);
-    print_stack(opstack);
+    // print_stack(outstack);
+    // print_stack(opstack);
 
     fclose(infile);
     fclose(outfile);

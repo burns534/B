@@ -1,3 +1,10 @@
-bc
 *.py
+*.txt
+*.b
+*.c
+debug.s
+test.s
+output.s
 test
+ll1
+a.out
