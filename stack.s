@@ -7,7 +7,7 @@
 .equ DEFAULT_STACK_CAP, 8 * 8 ; 8 quads
 .equ STACK_SIZE, 4 + 4 + 8
 
-.p2align 3
+.p2align 2
 
 ; stack requires 16 bytes.
 ; word count + 0

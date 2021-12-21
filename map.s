@@ -9,7 +9,6 @@
 .equ DEFAULT_MAP_CAP, 8 ; quads
 .equ DUMMY, -1
 .equ AVAIL, 0
-.equ OCUPIED, 1
 ; map layout
 ; word count + 0
 ; word cap + 4
@@ -208,8 +207,15 @@ _m_get:
 
 ; map in x0
 ; key (char *) in x1
-; result in x0, null if not
 _m_remove:
+    ; if count is zero return immediately
+    ldr w2, [x0]
+    cbnz w2, 0f
+    ret
+0:
+    str x19, [sp, -32]!
+    stp fp, lr, [sp, 16]
+    add fp, sp, 16
 
     mov x19, x0 ; save map in x19
 
@@ -225,9 +231,30 @@ _m_remove:
     udiv x2, x0, x1
     msub x0, x1, x2, x0
 
+    ; load keys
+    ldr x2, [x19, 8]
 0:
-    
+    ldr x3, [x2, x0, lsl 3]
+    cmp x3, AVAIL
+    beq 2f ; does not contain kvp
+    cmp x3, DUMMY
+    bne 1f ; remove
 
+    add x0, x0, 1
+    udiv x3, x0, x1
+    msub x0, x3, x1, x0
+    b 0b
+1:
+    ; write dummy at current key position to delete
+    mov x3, DUMMY
+    str x3, [x2, x0, lsl 3]
+    ; decrement count
+    ldr w1, [x19]
+    sub w1, w1, 1
+    str w1, [x19]
+2:
+    ldp fp, lr, [sp, 16]
+    ldr x19, [sp], 32
     ret
 
 ; accepts string in x0

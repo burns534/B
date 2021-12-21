@@ -11,8 +11,7 @@ typedef struct {
 
 typedef struct {
     unsigned count, capacity;
-    char **keys;
-    void **data;
+    void **keys, **data;
 } Map;
 
 // from debug.c
@@ -44,7 +43,7 @@ static void print_stack(Stack *s) {
 
 static void print_map(Map *m) {
     for (int i = 0; i < m->capacity; i++) 
-        printf("%s: %lu\n", m->keys[i], (size_t)m->data[i]);
+        printf("%s: %lu\n", (long)m->keys[i] >= 0 ? m->keys[i] : "DUMMY", (size_t)m->data[i]);
 }
 
 static size_t DJBHash(char* str) {
@@ -59,8 +58,9 @@ int main(int argc, char **argv) {
     Map *m = m_create();
 
     m_insert(m, "file handle", f);
-    print_map(m);
     m_insert(m, "file handle", 45);
+    print_map(m);
+    m_remove(m, "file handle");
     print_map(m);
     printf("count: %u\n", m->count);
 
