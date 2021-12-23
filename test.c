@@ -70,7 +70,7 @@ void m_resize(Map *);
 
 int main(int argc, char **argv) {
     // FILE *f = fopen(argv[1], "r");
-
+/*
     Map *m = m_create();
     m_insert(m, "count", 0UL);
     m_insert(m, "count1", 1UL);
@@ -85,6 +85,9 @@ int main(int argc, char **argv) {
     print_map(m);
 
     printf("username: %s\n", m_get(m, "another username"));
-    
-    return 0;
+    */
+   FILE *infile = fopen(argv[1], "r");
+   Token *t;
+    while ((t = lex(infile))->type != TS_EOF) print_token(t);
+   return 0;
 }

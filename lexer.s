@@ -3,6 +3,8 @@
 .globl _lex
 .equ keyword_bytes, 8 * 8
 .include "types.s"
+; FIXME - comment after integer causes infinite loop for some reason
+
 ; token layout
 ; type + 0 (unsigned long)
 ; value + 8 (pointer to null terminated string)
