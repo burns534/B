@@ -52,126 +52,142 @@ _m_create:
     ldr x19, [sp], 32
     ret
 
-_m_insert:
+; map in x0
+.globl _m_resize
+_m_resize:
     stp x21, x22, [sp, -48]!
     stp x19, x20, [sp, 32]
     stp fp, lr, [sp, 16]
     add fp, sp, 16
 
-    mov x19, x0 ; map
-    mov x20, x1 ; key
-    mov x21, x2 ; value
+    mov x19, x0 ; save map in x19
+    ldr w20, [x0, 4] ; old cap in x20
+    sxtw x20, w20
+    lsl w21, w20, 1 ; new cap
+    str w21, [x0, 4] ; write new cap
+    ldr x22, [x19, 16] ; save old values
 
-    ldr w0, [x19] ; load count
-
-    ldr w1, [x19, 4] ; load cap
-
-    ; compare
-    cmp w1, w0, lsl 1
-    bgt 0f
-
-    ; resize here
-
-    ; save keys and values arrays
-    stp x22, x23, [sp, -16]!
-    str x24, [sp, -16]!
-    ldr x22, [x19, 8] ; keys
-    ldr x23, [x19, 16] ; values
-
-    lsl w1, w1, 1 ; double cap
-    str w1, [x19, 4] ; write new cap
-    sxtw x0, w1 ; sign extend for malloc
-    lsl x0, x0, 3 ; quad align
+    lsl x0, x21, 3
     bl _malloc
-    str x0, [x19, 8] ; store new keys array
+    str x0, [x19, 16]; write as new values
 
-    ldr w0, [x19, 4]
-    sxtw x0, w0
-    lsl x0, x0, 3
+    lsl x0, x21, 3
     bl _malloc
-    str x0, [x19, 16] ; store new values array
-
-    ; repopulate arrays from old data
-    ; load capacity
-    ldr w24, [x19, 4]
-    sxtw x24, w24
-    lsr x24, x24, 1 ; halve
-1:
-    sub x24, x24, 1
-    cmp x24, 0
-    blt 1f
-    ldr x2, [x23, x24, lsl 3] ; load value
-    cbz x2, 1b
-    ldr x1, [x22, x24, lsl 3] ; load key
+    ldr x21, [x19, 8] ; save old keys
+    str x0, [x19, 8] ; write as new keys
+    
+    lsl x20, x20, 3
+0:
+    subs x20, x20, 8
+    ldr x1, [x21, x20]
+    cmp x1, 0
+    ble 2f
+    ldr x2, [x22, x20]
     mov x0, x19
-    bl _m_insert
-    b 1b
-1:
-    ldr x24, [sp], 16
-    ldp x22, x23, [sp], 16
-
-0:
-    ; calculate hash
-    mov x0, x20
-    bl _m_hash
-    mov x22, x0
-
-    ; load capacity
-    ldr w1, [x19, 4]
-    sxtw x1, w1
-
-    ; hash mod cap
-    udiv x2, x0, x1
-    msub x0, x2, x1, x0
-
-    ; load keys
-    ldr x2, [x19, 8]
-
-0:
-    ldr x3, [x2, x0, lsl 3] ; load key entry
-    cmp x3, AVAIL
-    ble 1f ; branch to insert
-    ; save registers and calculate hash of the current key
-    stp x0, x1, [sp, -32]!
-    stp x2, x3, [sp, 16]
-    mov x0, x3
-    bl _m_hash
-    mov x4, x0
-    ldp x2, x3, [sp, 16]
-    ldp x0, x1, [sp], 32
-    cmp x4, x22 ; if hash equal, skip to insert
-    beq 2f ; don't increment count
-
-    add x0, x0, 1 ; linear probe
-    udiv x3, x0, x1
-    msub x0, x3, x0, x1
-    b 0b
-1:
-    ldr w0, [x19] ; load count
-    add w0, w0, 1 ; increment
-    str w0, [x19] ; store count
+    bl _m_insert_util
 2:
-    ; insert key
-    str x20, [x2, x0, lsl 3]
-    ldr x2, [x19, 16] ; load values
-    str x21, [x2, x0, lsl 3] ; insert value
-
+    cmp x20, 8
+    bge 0b
+1:
     ldp fp, lr, [sp, 16]
     ldp x19, x20, [sp, 32]
     ldp x21, x22, [sp], 48
     ret
+    
+; map in x0
+; key in x1
+; value in x2
+.globl _m_insert_util
+_m_insert_util:
+    str x19, [sp, -48]!
+    stp x20, x21, [sp, 32]
+    stp fp, lr, [sp, 16]
+    add fp, sp, 16
+
+    mov x19, x0
+    mov x20, x1
+    mov x21, x2
+
+    mov x0, x1
+    bl _m_hash
+    mov x4, x0 ; this is not disturbed by hash
+
+    ldr w1, [x19, 4]
+    sxtw x1, w1
+
+    udiv x2, x0, x1
+    msub x0, x1, x2, x0
+
+    ldr x2, [x19, 8] ; load keys in x2
+0:
+    ldr x3, [x2, x0, lsl 3]
+    cbz x3, 2f
+    cmp x3, DUMMY
+    beq 1f
+; FIXME this needs to be strcmp
+    ; check if equal
+    stp x0, x1, [sp, -32]!
+    stp x2, x3, [sp, 16]
+    mov x0, x3
+    bl _m_hash
+    mov x5, x0
+    ldp x2, x3, [sp, 16]
+    ldp x0, x1, [sp], 32
+    cmp x5, x4
+    beq 2f
+1:
+    add x0, x0, 1
+    udiv x3, x0, x1
+    msub x0, x3, x1, x0
+    b 0b
+2:
+    str x20, [x2, x0, lsl 3]
+    ldr x2, [x19, 16]
+    str x21, [x2, x0, lsl 3]
+
+    ldp fp, lr, [sp, 16]
+    ldp x20, x21, [sp, 32]
+    ldr x19, [sp], 48
+    ret
+
+
+
+; map in x0
+; key in x1
+; value in x2
+_m_insert:
+    stp fp, lr, [sp, -16]!
+    ldr w3, [x0, 4]
+    ldr w4, [x0]
+    add w4, w4, 1 ;update count
+    str w4, [x0]
+    cmp w3, w4, lsl 1
+    bgt 0f
+
+    stp x0, x1, [sp, -32]!
+    str x2, [sp, 16]
+    bl _m_resize
+    ldr x2, [sp, 16]
+    ldp x0, x1, [sp], 32
+0:
+    bl _m_insert_util
+    ldp fp, lr, [sp], 16
+    ret
+
+
 
 ; map in x0
 ; key (char *) in x1
 ; result in x0
 _m_get:
-    str x19, [sp, -32]!
+    stp x19, x20, [sp, -32]!
     stp fp, lr, [sp, 16]
     add fp, sp, 16
 
     mov x19, x0 ; save map in x19
     ; calculate hash of key
     mov x0, x1
+    mov x20, x1 ; save for later
     bl _m_hash
 
     ldr w1, [x19, 4] ; cap
@@ -184,15 +200,29 @@ _m_get:
     ldr x2, [x19, 8]
 0:
     ldr x3, [x2, x0, lsl 3]
-    cbnz x3, 1f
-    mov x0, 0
-    b 3f
-1:
+    cbz x3, 3f
     cmp x3, DUMMY
     beq 2f
+
+; check if equal
+    stp x0, x1, [sp, -32]!
+    stp x2, x3, [sp, 16]
+    ;stp x3, x5, [sp, -16]!
+    ;adrp x0, debug_message@page
+    ;add x0, x0, debug_message@pageoff
+    ;bl _printf
+    ;ldp x3, x5, [sp], 16
+    mov x0, x3
+    mov x1, x20
+    bl _strcmp
+    mov x4, x0
+    ldp x2, x3, [sp, 16]
+    ldp x0, x1, [sp], 32
+    cbnz x4, 2f ; if not equal, continue
+
     ldr x2, [x19, 16]
     ldr x0, [x2, x0, lsl 3]
-    b 3f
+    b 4f
 2:
     ; hash = (hash + 1) % capacity
     add x0, x0, 1 ; increment
@@ -200,8 +230,10 @@ _m_get:
     msub x0, x3, x1, x0 
     b 0b
 3:
+    mov x0, xzr
+4:
     ldp fp, lr, [sp, 16]
-    ldr x19, [sp], 32
+    ldp x19, x20, [sp], 32
     ret
 
 
@@ -213,7 +245,7 @@ _m_remove:
     cbnz w2, 0f
     ret
 0:
-    str x19, [sp, -32]!
+    stp x19, x20, [sp, -32]!
     stp fp, lr, [sp, 16]
     add fp, sp, 16
 
@@ -221,6 +253,7 @@ _m_remove:
 
     ; calculate hash of key
     mov x0, x1
+    mov x20, x1 ; save key for later
     bl _m_hash
 
     ; load cap
@@ -235,11 +268,22 @@ _m_remove:
     ldr x2, [x19, 8]
 0:
     ldr x3, [x2, x0, lsl 3]
-    cmp x3, AVAIL
-    beq 2f ; does not contain kvp
+    cbz x3, 2f ; does not contain kvp
     cmp x3, DUMMY
-    bne 1f ; remove
+    beq 2f ; continue
 
+    ; here check if equal
+    stp x0, x1, [sp, -32]!
+    stp x2, x3, [sp, 16]
+
+    mov x0, x20
+    mov x1, x3
+    bl _strcmp
+    mov x4, x0
+    ldp x2, x3, [sp, 16]
+    ldp x0, x1, [sp], 32
+    cbz x4, 1f ; equal -> remove
+2:
     add x0, x0, 1
     udiv x3, x0, x1
     msub x0, x3, x1, x0
@@ -254,7 +298,7 @@ _m_remove:
     str w1, [x19]
 2:
     ldp fp, lr, [sp, 16]
-    ldr x19, [sp], 32
+    ldp x19, x20, [sp], 32
     ret
 
 ; accepts string in x0
@@ -271,3 +315,6 @@ _m_hash:
 1:
     mov x0, x1
     ret
+
+.section __text,__cstring,cstring_literals
+debug_message: .asciz "s1, s2: %s, %s\n"

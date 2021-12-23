@@ -1,3 +1,13 @@
-#2 * 5 + 92 / 4 + 8 ? 5 * 9 + 2
-
-1 + 2 + 3 + 4
+#(12 * (8 + 4) / 6 + 7) % 9
+#var count = 3;
+#var buf = "a string literal";
+#var lbuf = count;
+func fib(n) {
+    if n ? 1 {
+        return 1;
+    }
+    if n ? 2 {
+        return 2;
+    }
+    return fib(n - 1) + fib(n - 2);
+}

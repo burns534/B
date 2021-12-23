@@ -1,8 +1,8 @@
 .text
-.globl _create_stack
-.globl _push_stack
-.globl _pop_stack
-.globl _top_stack
+.globl _s_create
+.globl _s_push
+.globl _s_pop
+.globl _s_top
 
 .equ DEFAULT_STACK_CAP, 8 * 8 ; 8 quads
 .equ STACK_SIZE, 4 + 4 + 8
@@ -15,7 +15,7 @@
 ; quad data + 8
 
 ; return stack in x0
-_create_stack:
+_s_create:
     str x19, [sp, -32]!
     stp fp, lr, [sp, 16]
     add fp, sp, 16
@@ -41,7 +41,7 @@ _create_stack:
 
 ; accept stack in x0
 ; quad value in x1
-_push_stack:
+_s_push:
     stp x19, x20, [sp, -32]!
     stp fp, lr, [sp, 16]
     add fp, sp, 16
@@ -81,7 +81,7 @@ _push_stack:
     ret
 ; accept stack in x0
 ; return value in x0
-_pop_stack:
+_s_pop:
     ; load current count
     ldr w8, [x0]
     ; guard to make sure stack isn't empty
@@ -100,7 +100,7 @@ _pop_stack:
     ret
 ; stack in x0
 ; value in x0
-_top_stack:
+_s_top:
     ; load current count
     ldr w8, [x0]
     sub w8, w8, 1

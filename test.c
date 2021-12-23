@@ -19,13 +19,7 @@ void print_token(Token *);
 char * token_type_to_string(size_t);
 // lexer.s
 Token * lex(FILE *handle);
-// stack.s
-Stack * create_stack();
-void push_stack(Stack *, void *);
-void * pop_stack(Stack *);
-void * top_stack(Stack *);
-// emitter.s
-long precedence(long);
+
 // map.s
 Map * m_create();
 void m_insert(Map *, char *, void *);
@@ -41,6 +35,11 @@ static void print_stack(Stack *s) {
     puts("");
 }
 
+static void print_keys(Map *m) {
+    for (int i = 0; i < m->capacity; i++)
+        printf("%lu\n", (size_t)m->keys[i]);
+}
+
 static void print_map(Map *m) {
     for (int i = 0; i < m->capacity; i++) 
         printf("%s: %lu\n", (long)m->keys[i] >= 0 ? m->keys[i] : "DUMMY", (size_t)m->data[i]);
@@ -51,20 +50,41 @@ static size_t DJBHash(char* str) {
    while (*str) hash += (hash << 5) + *str++;
    return hash;
 }
+#include <assert.h>
+
+// static void * map_get(Map *m, char *key) {
+//     size_t index = DJBHash(key) % m->capacity;
+//     while (1) {
+//         if (m->keys[index] == 0) return 0;
+//         else if (m->keys[index] == -1) {
+//             index = (index + 1) % m->capacity;
+//             continue;
+//         } else {
+//             return m->data[index];
+//         }
+//     }
+// }
+
+void m_resize(Map *);
+// void m_insert_util(Map *, char *, void *);
 
 int main(int argc, char **argv) {
-    FILE *f = fopen(argv[1], "r");
+    // FILE *f = fopen(argv[1], "r");
 
     Map *m = m_create();
+    m_insert(m, "count", 0UL);
+    m_insert(m, "count1", 1UL);
+    m_insert(m, "count2", 4UL);
+    m_insert(m, "count3", 9UL);
+    m_insert(m, "count4", 16UL);
+    m_insert(m, "username", 34UL);
+    m_insert(m, "username1", 98UL);
+    m_insert(m, "username2", 73UL);
+    m_insert(m, "another username", "kburns8");
 
-    m_insert(m, "file handle", f);
-    m_insert(m, "file handle", 45);
     print_map(m);
-    m_remove(m, "file handle");
-    print_map(m);
-    printf("count: %u\n", m->count);
 
-    printf("value: %lu\n", (size_t)m_get(m, "file handle"));
-
+    printf("username: %s\n", m_get(m, "another username"));
+    
     return 0;
 }

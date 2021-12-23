@@ -1,10 +1,8 @@
 .text
 .p2align 2
 .globl _lex
-.equ keyword_bytes, 8 * 8 ; need to add extrn
+.equ keyword_bytes, 8 * 8
 .include "types.s"
-
-
 ; token layout
 ; type + 0 (unsigned long)
 ; value + 8 (pointer to null terminated string)
@@ -65,6 +63,9 @@ _lex:
     beq 1f
     cmp w20, '*'
     mov w24, TS_MUL
+    beq 1f
+    cmp w20, '@'
+    mov w24, TS_PTR
     beq 1f
     cmp w20, '%'
     mov w24, TS_MOD
@@ -146,9 +147,7 @@ _lex:
 
 _error:                           
 ; %bb.0:
-	sub	sp, sp, 32                
-	stp	fp, lr, [sp, 16]          
-	add	fp, sp, 16             
+	sub	sp, sp, 16            
                                      
 	sxtw x20, w20
     str	x20, [sp]
@@ -416,20 +415,20 @@ token: .quad 0, 0 ; this was for when the parser was ll1
 keywords:
     .quad break
     .quad continue
-    .quad else
+    .quad func
     .quad if
-    .quad register
     .quad return
     .quad struct
+    .quad var
     .quad while
 
 break: .asciz "break"
 continue: .asciz "continue"
-else: .asciz "else"
+func: .asciz "func"
 if: .asciz "if"
-register: .asciz "register"
 return: .asciz "return"
 struct: .asciz "struct"
+var: .asciz "var"
 while: .asciz "while"
 
 .section __TEXT,__cstring,cstring_literals

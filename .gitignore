@@ -5,6 +5,7 @@
 debug.s
 test.s
 output.s
+atest.s
 test
 ll1
 a.out
