@@ -5,7 +5,7 @@
 #include "Symbol.h"
 
 typedef struct {
-    int count, capacity;
+    int top, capacity;
     void **data;
 } Stack;
 
@@ -23,15 +23,27 @@ Token * lex(FILE *handle);
 // map.s
 Map * m_create();
 void m_insert(Map *, char *, void *);
+size_t m_contains(Map *, char *);
 void * m_get(Map *, char *);
 void * m_remove(Map *, char *);
 
+// stack.s
+Stack * s_create();
+void s_push(Stack *, void *);
+void * s_pop(Stack *);
+void * s_top(Stack *);
+
+// symbol_table.s
+void create_symbol_table();
+void enter_scope();
+void exit_scope();
+size_t * get_entry(char *);
+void save_entry(char *, size_t *);
+
 // utility
 static void print_stack(Stack *s) {
-    for (int i = 0; i < s->count; i++) {
-        Token *t = s->data[i];
-        printf("%ld:%s ", t->type, t->value);
-    }
+    for (int i = 0; i < s->capacity; i++) 
+        printf("%lu ", (size_t)s->data[i]);
     puts("");
 }
 
@@ -82,12 +94,50 @@ int main(int argc, char **argv) {
     m_insert(m, "username2", 73UL);
     m_insert(m, "another username", "kburns8");
 
+    m_remove(m, "username2");
+
     print_map(m);
 
-    printf("username: %s\n", m_get(m, "another username"));
-    */
-   FILE *infile = fopen(argv[1], "r");
-   Token *t;
-    while ((t = lex(infile))->type != TS_EOF) print_token(t);
+    printf("contains: %lu\n", m_contains(m, "username2"));
+
+    // printf("username: %s\n", m_get(m, "another username"));
+*/
+/*
+    Stack *s = s_create();
+    for (int i = 0; i < 20; i ++) s_push(s, (size_t)i);
+
+    
+    print_stack(s);
+
+    for (int i = 0; i < 20; i++) s_pop(s);
+
+    print_stack(s);
+
+    s_push(s, 80UL);
+    s_push(s, 480UL);
+    s_push(s, 8300UL);
+
+    print_stack(s);
+*/
+    create_symbol_table();
+
+    save_entry("foo", 4UL);
+    
+    printf("foo: %lu\n", (size_t)get_entry("foo"));
+
+    save_entry("foo", 5UL);
+
+    printf("foo: %lu\n", (size_t)get_entry("foo"));
+
+    enter_scope();
+
+    save_entry("foo", 7UL);
+
+    printf("foo: %lu\n", (size_t)get_entry("foo"));
+
+
+//    FILE *infile = fopen(argv[1], "r");
+//    Token *t;
+//     while ((t = lex(infile))->type != TS_EOF) print_token(t);
    return 0;
 }

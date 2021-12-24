@@ -1,6 +1,6 @@
-#var count = 3;
-#var buf = "a string literal";
-#var lbuf = count;
+var count = 3;
+var buf = "a string literal";
+var lbuf = count;
 func fib(n) {
     if n ? 1 {
         return 1;

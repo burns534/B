@@ -7,11 +7,6 @@
 .globl _unary_eval
 .globl _primary_eval
 .globl _binary_eval
-.globl _create_symbol_table
-.globl _enter_scope
-.globl _exit_scope
-.globl _get_entry
-.globl _save_entry
 .globl _variable_definition
 .globl _expression_eval
 
@@ -21,9 +16,6 @@ _get_symbol_table:
     add x0, x0, symbol_table_address@pageoff
     ldr x0, [x0]
     ret
-
-.equ VARIABLE_TYPE, 64
-.equ FUNCTION_TYPE, 65
 
 ;.globl _main
 
@@ -95,7 +87,7 @@ _primary_eval:
     b 10f
 1:
     cmp x1, TS_IDENTIFIER
-    beq _primary_eval_runtime_error
+    bne _primary_eval_runtime_error
     bl _get_entry
     ldr x0, [x0, 8] ; load value for identifier from variable entry
 10:
@@ -105,7 +97,11 @@ _primary_eval:
 _primary_eval_runtime_error:
     adrp x0, primary_eval_error_message@page
     add x0, x0, primary_eval_error_message@pageoff
-    bl _runtime_error
+    str x1, [sp]
+    bl _printf
+
+    mov x0, 1
+    b _exit
 
 ; op2 in x0
 ; op1 in x1
@@ -138,9 +134,20 @@ _binary_eval:
     msub x0, x0, x2, x1
     ret
 4:
-
+    cmp x3, TS_EQ
+    bne 5f
+    cmp x0, x1
+    cset x0, eq
+    ret
+5:
+    cmp x3, TS_LT
+    bne 6f
+    cmp x1, x0
+    cset x0, lt
+    ret
+6:
     str x3, [sp]
-    stp x0, x1, [sp, 8]
+    stp x1, x0, [sp, 8]
     adrp x0, binary_error@page
     add x0, x0, binary_error@pageoff
     bl _printf
@@ -310,7 +317,7 @@ _expression_eval:
 
     ; adjust cursor
     str x20, [x25]
-50:
+
     ldp x19, x20, [sp, 16]
     ldp x21, x22, [sp, 32]
     ldp x23, x24, [sp, 48]
@@ -339,25 +346,28 @@ _expression_eval_runtime_error2:
     bl _runtime_error
 
 ; tokens in x0 
-; cursor in x1
+; cursor pointer in x1
 ; return cursor in x0
 _variable_definition:
 
     ; load current token and check for var, abort early if not
-    ldr x8, [x0, x1, lsl 3]
+    ldr x2, [x1]
+    ldr x8, [x0, x2, lsl 3]
     ldr x8, [x8]
     cmp x8, TS_VAR
     beq 0f
-    mov x0, x1
+    mov x0, xzr ; return false
     ret
 0:
-    str x21, [sp, -48]!
+    stp x21, x22, [sp, -48]!
     stp x19, x20, [sp, 32]
     stp fp, lr, [sp, 16]
     add fp, sp, 16
 
     mov x19, x0
-    add x20, x1, 1 ; advance cursor to next token
+    mov x22, x1
+    ldr x20, [x22] ; load cursor
+    add x20, x20, 1 ; advance cursor to next token
 
     ; check identifier
     ldr x21, [x19, x20, lsl 3] ; save in x21 for later
@@ -392,11 +402,14 @@ _variable_definition:
     cmp x8, TS_SEMICOLON
     bne _variable_definition_runtime_error
 
-    add x0, x20, 1 ; advance cursor to next candidate token and return in x0
+    add x20, x20, 1 ; advance cursor to next candidate token and return in x0
+    str x20, [x22] ; write cursor
+
+    mov x0, 1 ; return true
 
     ldp fp, lr, [sp, 16]
     ldp x19, x20, [sp, 32]
-    ldr x21, [sp], 48
+    ldp x21, x22, [sp], 48
     ret
 
 _variable_definition_runtime_error:
@@ -411,24 +424,27 @@ _variable_definition_runtime_error:
 
 .globl _function_definition
 ; tokens in x0
-; cursor in x1
-; returns cursor in x0
+; cursor pointer in x1
+; returns 1 if found
 _function_definition:
     ; check for func keyword and early abort if not found
-    ldr x8, [x0, x1, lsl 3]
+    ldr x2, [x1]
+    ldr x8, [x0, x2, lsl 3]
     ldr x8, [x8]
     cmp x8, TS_FUNC
     beq 0f
-    mov x0, x1
+    mov x0, xzr ; return false
     ret
 0:
-    stp x21, x22, [sp, -48]!
+    stp fp, lr, [sp, -64]!
+    stp x21, x22, [sp, 48]
     stp x19, x20, [sp, 32]
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
+    str x23, [sp, 16]
 
     mov x19, x0
-    add x20, x1, 1
+    mov x23, x1 ; save cursor pointer
+    ldr x20, [x23] ; load cursor
+    add x20, x20, 1
     bl _s_create
     mov x21, x0 ; create stack for parameters
 
@@ -505,11 +521,13 @@ _function_definition:
     ; check nest depth
     cbnz x9, 0b
 
-    mov x0, x20 ; return cursor
+    str x20, [x23] ; write cursor
+    mov x0, 1 ; return true
 
-    ldp fp, lr, [sp, 16]
+    ldr x23, [sp, 16]
     ldp x19, x20, [sp, 32]
-    ldp x21, x22, [sp], 48
+    ldp x21, x22, [sp, 48]
+    ldp fp, lr, [sp], 64
     ret
 
 _function_definition_runtime_error:
@@ -520,139 +538,35 @@ _function_definition_runtime_error:
 
     mov w0, 1
     bl _exit
-    
-; void
-_create_symbol_table:
-    str x19, [sp, -32]!
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
-    bl _s_create
-    mov x19, x0
-    bl _m_create
-    mov x1, x0
-    mov x0, x19
-    bl _s_push
 
-    adrp x1, symbol_table_address@page
-    add x1, x1, symbol_table_address@pageoff
-    str x19, [x1]
-    ldp fp, lr, [sp, 16]
-    ldr x19, [sp], 32
+
+; need to provide nest depth here somehow
+.globl _if_statement
+; tokens in x0
+; cursor pointer in x1
+; return x0 1 for true, 0 for false
+_if_statement:
+    ; check for if keyword
+    ldr x8, [x1]
+    ldr x8, [x0, x8, lsl 3] ; load current token
+    ldr x8, [x8] ; load type
+    cmp x8, TS_IF
+    beq 0f
+    mov x0, xzr
     ret
-
-_enter_scope:
-    stp fp, lr, [sp, -16]!
-    bl _m_create
-    mov x1, x0
-    adrp x0, symbol_table_address@page
-    add x0, x0, symbol_table_address@pageoff
-    ldr x0, [x0]
-    bl _s_push
-    ldp fp, lr, [sp], 16
-    ret
-
-_exit_scope:
-    stp fp, lr, [sp, -16]!
-    adrp x0, symbol_table_address@page
-    add x0, x0, symbol_table_address@pageoff
-    ldr x0, [x0]
-    bl _s_pop
-    ldp fp, lr, [sp], 16
-    ret
-
-; identifier in x0
-; pointer to result in x0
-_get_entry:
-    stp x19, x20, [sp, -48]!
-    str x21, [sp, 32]
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
-
-    mov x19, x0 ; save id
-    adrp x0, symbol_table_address@page
-    add x0, x0, symbol_table_address@pageoff
-    ldr x0, [x0]
-    ldr x20, [x0, 8] ; stack data
-    ldr w21, [x0] ; stack count
-    sxtw x21, w21
-    lsl x21, x21, 3 ; quad align
 0:
-    subs x21, x21, 8
-    cmp x21, 0
-    blt 1f
-
-    ldr x0, [x20, x21] ; load map
-    mov x1, x19 ; identifier as arg 1
-    
-    ;stp x0, x1, [sp, -16]!
-    ;adrp x0, debug_message@page
-    ;add x0, x0, debug_message@pageoff
-    ;bl _printf
-    ;ldp x0, x1, [sp], 16
-
-    bl _m_get ; check map at this scope
-
-    cbz x0, 0b ; if not, check level lower
-
-1:
-    ldp fp, lr, [sp, 16]
-    ldr x21, [sp, 32]
-    ldp x19, x20, [sp], 48
-    ret
-
-; identifier in x0
-; entry in x1
-_save_entry:
-    stp fp, lr, [sp, -16]!
-    stp x0, x1, [sp, -16]!
-    adrp x0, symbol_table_address@page
-    add x0, x0, symbol_table_address@pageoff
-    ldr x0, [x0]
-    ; get top of symbol table
-    bl _s_top
-    ldp x1, x2, [sp], 16 ; restore params
-    bl _m_insert ; insert
-    ldp fp, lr, [sp], 16
-    ret
-
-.globl _create_variable_entry
-; value in x0
-; result in x0
-_create_variable_entry:  
-    str x19, [sp, -32]!
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
+; allocate stack
     mov x19, x0
-    mov x0, 16
-    bl _malloc
-    mov x1, VARIABLE_TYPE
-    str x1, [x0]
-    str x19, [x0, 8]
-    ldp fp, lr, [sp, 16]
-    ldr x19, [sp], 32
-    ret
+    mov x20, x1 ; save cursor pointer
+    ldr x21, [x1] ; load cursor
 
-.globl _create_function_entry
-; parameter stack in x0
-; entry point in x1
-; result in x0
-_create_function_entry:
-    stp fp, lr, [sp, -32]!
-    stp x0, x1, [sp, 16]
 
-    mov x0, 24
-    bl _malloc ; allocate 24 bytes for function entry
-    mov x2, x0
 
-    ldp x0, x1, [sp, 16]
-    str x1, [x2, 16] ; write entry
-    str x0, [x2, 8] ; write param stack
-    mov x0, FUNCTION_TYPE
-    str x0, [x2] ; write type
+.globl _function_call
+; accept tokens in x0
+; accept pointer to cursor in x1
+_function_call:
 
-    mov x0, x2 ; return struct
-
-    ldp fp, lr, [sp], 32
     ret
 
 
@@ -661,7 +575,6 @@ _create_function_entry:
 .data
 .p2align 3
 precedence_table: .quad 0, 1, 1, 2, 2, 3, 3, 3
-symbol_table_address: .quad
 
 .section __text,__cstring,cstring_literals
 unary_error: .asciz "error: invalid unary operator"
@@ -671,6 +584,6 @@ function_def_error: .asciz "function definition failed on token %lu\n"
 exp_eval_error: .asciz "expression eval failed on token %lu\n"
 exp_eval_error1: .asciz "outstack count is not 1"
 exp_eval_error2: .asciz "top of opstack was not open paren"
-primary_eval_error_message: .asciz "primary expression encountered invalid token"
+primary_eval_error_message: .asciz "primary expression encountered invalid token %lu\n"
 debug_message: .asciz "primary_eval result: %lu\n"
 debug_message1: .asciz "top of opstack is: %lu\n"

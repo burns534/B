@@ -4,39 +4,40 @@
 .globl _s_pop
 .globl _s_top
 
-.equ DEFAULT_STACK_CAP, 8 * 8 ; 8 quads
+.equ DEFAULT_STACK_CAP, 8 ; 8 quads
 .equ STACK_SIZE, 4 + 4 + 8
 
 .p2align 2
 
 ; stack requires 16 bytes.
-; word count + 0
+; word top + 0
 ; word capacity + 4
 ; quad data + 8
 
 ; return stack in x0
 _s_create:
-    str x19, [sp, -32]!
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
+    stp fp, lr, [sp, -32]!
+    str x19, [sp, 16]
     ; initialize memory to zero for
     mov x0, STACK_SIZE
     bl _malloc
     mov x19, x0 ; store for later in x19
 
-    str wzr, [x0] ; set count to zero
+    mov w1, -1 ; top to -1 to start
+    str w1, [x0] ; set count to zero
 
     mov w1, DEFAULT_STACK_CAP
     str w1, [x0, 4] ; set capacity
 
     ; allocate data
     mov w0, w1
-    bl _malloc
+    mov w1, 8 ; quads
+    bl _calloc
     str x0, [x19, 8] ; assign pointer to stack structure
     mov x0, x19 ; return stack pointer from this procedure
 
-    ldp fp, lr, [sp, 16]
-    ldr x19, [sp], 32
+    ldr x19, [sp, 16]
+    ldp fp, lr, [sp], 32
     ret
 
 ; accept stack in x0
@@ -52,7 +53,7 @@ _s_push:
     ; load stack count and check if need to resize
     ldr w8, [x19] ; load count
     ldr w9, [x19, 4] ; load cap
-    cmp w9, w8, lsl 1 ; compare cap to count times two
+    cmp w9, w8, lsl 1 ; compare cap to top times two
     bgt 0f ; if it's greater, do nothing, otherwise resize
     ; resize here
     lsl w9, w9, 1 ; double cap
@@ -68,13 +69,16 @@ _s_push:
 0:
     ; insert here
     ; load pointer to data
-    ldr x0, [x19, 8]
-    ldr w1, [x19] ; load count
-    sxtw x1, w1 ; sign extend w1 to x1
-    str x20, [x0, x1, lsl 3] ; store value in data at count offset with quad alignment
-    ; increment count and store
-    add x1, x1, 1
-    str w1, [x19]
+    ldr x8, [x19, 8]
+    ldr w9, [x19] ; load count
+    sxtw x9, w9 ; sign extend w1 to x1
+    add x9, x9, 1 ; increment
+    str w9, [x19] ; write new count
+    str x20, [x8, x9, lsl 3] ; store value in data at count offset with quad alignment
+
+; guarantee next element is zero
+    add x9, x9, 1
+    str xzr, [x8, x9, lsl 3]
 
     ldp fp, lr, [sp, 16]
     ldp x19, x20, [sp], 32
@@ -85,26 +89,24 @@ _s_pop:
     ; load current count
     ldr w8, [x0]
     ; guard to make sure stack isn't empty
-    cbnz w8, 0f
+    cmp w8, -1
+    bgt 0f
     ret
 0:
-    ; load data pointer
-    ldr x9, [x0, 8]
-    ; decrement count and store
-    sub w10, w8, 1
-    str w10, [x0]
-    ; sign extend word for return
-    sxtw x8, w10
-    ; access value at address, quad alignment
-    ldr x0, [x9, x8, lsl 3]
+    sxtw x8, w8
+    ldr x9, [x0, 8] ; data
+    ldr x10, [x9, x8, lsl 3] ; access value at top of stack, x0 for return
+    str xzr, [x9, x8, lsl 3] ; overwrite value with zero
+    subs x8, x8, 1 ; decrement top
+    str w8, [x0] ; write new top
+    mov x0, x10 ; return value
     ret
 ; stack in x0
 ; value in x0
 _s_top:
     ; load current count
     ldr w8, [x0]
-    sub w8, w8, 1
-    sxtw x8, w8
     ldr x9, [x0, 8]
+    sxtw x8, w8
     ldr x0, [x9, x8, lsl 3]
     ret

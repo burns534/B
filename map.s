@@ -2,6 +2,7 @@
 .p2align 2
 .globl _m_create
 .globl _m_insert
+.globl _m_contains
 .globl _m_get
 .globl _m_remove
 
@@ -174,7 +175,55 @@ _m_insert:
     ldp fp, lr, [sp], 16
     ret
 
+; map in x0
+; key in x1
+; result in x0 1 if true
+_m_contains:
+    stp fp, lr, [sp, -48]!
+    stp x21, x22, [sp, 32]
+    stp x19, x20, [sp, 16]
 
+    mov x19, x0 ; save map in x19
+    mov x20, x1 ; save key in x20
+
+    mov x0, x1
+    bl _m_hash ; calculate hash
+
+    ldr w21, [x19, 4] ; load capacity, save in x21
+    sxtw x21, w21 ; sign extend for division
+
+    ; hash mod cap
+    udiv x8, x0, x21
+    msub x8, x21, x8, x0
+    ; load keys
+    ldr x22, [x19, 8] 
+0:
+    ldr x9, [x22, x8, lsl 3]
+    cbz x9, 1f ; does not contain
+    cmp x9, DUMMY
+    beq 2f
+    ; otherwise, check if equal
+    mov x0, x9 ; current key
+    mov x1, x20 ; key 
+    str x8, [sp, -16]!
+    bl _strcmp
+    ldr x8, [sp], 16
+    cbz x0, 3f
+2:
+    add x8, x8, 1 ; hash = (hash + 1) % capacity
+    udiv x9, x8, x21
+    msub x8, x21, x9, x8
+    b 0b
+1:
+    mov x0, xzr
+    b 4f
+3:
+    mov x0, 1
+4:
+    ldp x19, x20, [sp, 16]
+    ldp x21, x22, [sp, 32]
+    ldp fp, lr, [sp], 48
+    ret
 
 ; map in x0
 ; key (char *) in x1
