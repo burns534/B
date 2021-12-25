@@ -64,6 +64,11 @@ _unary_eval:
 ; needs error handling since it is called blindly
 _primary_eval:
     stp fp, lr, [sp, -16]!
+
+    str x0, [sp, -16]!
+    bl _print_activation_stack
+    ldr x0, [sp], 16
+
     ldr x1, [x0] ; load token type
     cmp x1, TS_INTEGER
     bne 0f
@@ -192,10 +197,14 @@ _expression_eval:
     beq _expression_eval_runtime_error
 
     stp x8, x12, [sp, -16]!
+    ldr x9, [x12, 8]
+    str x9, [sp, -16]!
     adrp x0, debug_message4@page
     add x0, x0, debug_message4@pageoff
     bl _printf
+    add sp, sp, 16
     ldp x8, x12, [sp], 16
+
 ; check if operator
     cmp x8, TS_EQ
     blt 1f
@@ -240,6 +249,10 @@ _expression_eval:
 ; handle close paren
 20:
     mov x0, x21 ; opstack
+; check that the opstack isn't empty
+    ldr w8, [x21]
+    cmp w8, -1
+    beq 0f ; if it is, we were inside a function call parameters hopefully
     bl _s_top
     ldr x8, [x0]
     ;str x0, [sp, -16]!
@@ -316,7 +329,7 @@ _expression_eval:
 
 ; now evaluate the rest of the stack
 0:
-    mov x0, x21
+    mov x0, x21 ; opstack
     bl _s_top
     cbz x0, 1f
 
@@ -370,16 +383,32 @@ _expression_eval_runtime_error2:
 ; tokens in x0
 ; cursor pointer in x1
 _evaluate:
-    stp fp, lr, [sp, -32]!
-    stp x19, x20, [sp, 16]
+    stp fp, lr, [sp, -48]!
+    stp x19, x20, [sp, 32]
+    str x21, [sp, 16]
     mov x19, x0 ; save tokens
     mov x20, x1 ; save cursor pointer
+
+    bl _print_activation_stack
 0:  
     ldr x21, [x20] ; load current cursor, was probably changed by one of these routines
     ; check for close bracket
     ldr x8, [x19, x21, lsl 3] ; load current token
     ldr x8, [x8] ; load type
+;; debug message
+    stp x8, x21, [sp, -16]!
+    adrp x0, debug_message8@page
+    add x0, x0, debug_message8@pageoff
+    bl _printf
+    ldr x8, [sp], 16
+; terminate on any of these 4 tokens
     cmp x8, TS_CLOSE_CURL_BRACE
+    beq 2f
+    cmp x8, TS_RETURN
+    beq 2f ; if return, end
+    cmp x8, TS_BREAK
+    beq 2f
+    cmp x8, TS_CONTINUE
     beq 2f
 
     mov x0, x19
@@ -417,15 +446,6 @@ _evaluate:
     bl _variable_definition
     cbnz x0, 0b
 
-    ldr x8, [x19, x21, lsl 3] ; load token
-    ldr x8, [x8] ; load type
-    cmp x8, TS_RETURN
-    beq 2f ; if return, end
-    cmp x8, TS_BREAK
-    beq 2f
-    cmp x8, TS_CONTINUE
-    beq 2f
-
     adrp x0, eval_error1@page
     add x0, x0, eval_error1@pageoff
     bl _runtime_error
@@ -433,8 +453,9 @@ _evaluate:
 2:
     str x21, [x20] ; update cursor
 
-    ldp x19, x20, [sp, 16]
-    ldp fp, lr, [sp], 32
+    ldr x21, [sp, 16]
+    ldp x19, x20, [sp, 32]
+    ldp fp, lr, [sp], 48
     ret
     
 ; tokens in x0
@@ -504,6 +525,13 @@ _if_statement:
 
     bl _print_symbol_table
 
+; check for return expr
+    ldr x21, [x20]
+    ldr x8, [x19, x21, lsl 3]
+    ldr x8, [x8] ; type
+    cmp x8, TS_RETURN
+    beq 20f
+
     ; exit scope
     bl _exit_scope
 
@@ -570,6 +598,15 @@ _if_statement:
     mov x1, x20
     bl _evaluate
 
+    bl _print_symbol_table
+
+; check for return expr
+    ldr x21, [x20]
+    ldr x8, [x19, x21, lsl 3]
+    ldr x8, [x8] ; type
+    cmp x8, TS_RETURN
+    beq 20f
+
     ; exit scope
     bl _exit_scope
 
@@ -604,9 +641,10 @@ _while_statement:
 ; accept tokens in x0
 ; accept pointer to cursor in x1
 _function_call:
-    stp fp, lr, [sp, -48]!
-    stp x21, x22, [sp, 32]
-    stp x19, x20, [sp, 16]
+    stp fp, lr, [sp, -64]!
+    stp x21, x22, [sp, 48]
+    stp x19, x20, [sp, 32]
+    str x23, [sp, 16]
 
     mov x19, x0 ; tokens in x19
     mov x20, x1 ; cursor pointer x20
@@ -637,19 +675,45 @@ _function_call:
 
     add x21, x21, 2 ; skip open paren since it is gauranteed to be there
 
-    bl _enter_scope ; enter scope
-; bind parameters, skip for now
+    str x21, [x20] ; update cursor
+
+    bl _start_variable_binding ; start variable binding context
+
+; bind parameters
 0:
     ldr x8, [x19, x21, lsl 3] ; load token
     ldr x8, [x8] ; type
     cmp x8, TS_CLOSE_PAREN
+    beq 2f
+    cmp x8, TS_COMMA
     beq 1f
-    add x21, x21, 1
+; evaluate the expression
+    mov x0, x19
+    mov x1, x20
+    bl _expression_eval
+
+    ldr x21, [x20] ; update cursor after expression eval changed it
+
+    bl _create_variable_entry ; create variable entry with exp result
+
+    mov x1, x0 ; move result to arg1
+    ; get identifier
+    ldr x0, [x22, 8] ; parameter stack
+    bl _s_pop ; get next parameter
+
+    bl _bind_variable ; save entry
+    
     b 0b
 1:
+    add x21, x21, 1
+    str x21, [x20]
+    b 0b
+2:
+    bl _end_variable_binding ; end variable binding context
 
     add x0, x21, 1 ; return to token following close paren
-    bl _push_activation_stack ; push return point to return stack
+
+    bl _set_return_cursor
 
     ldr x8, [x22, 16] ; load entry point
     str x8, [x20] ; set cursor to entry
@@ -671,9 +735,6 @@ _function_call:
     bl _pop_activation_stack
     str x0, [x20] ; set cursor to return location
 
-    ; exit scope
-    bl _exit_scope
-
     mov x0, x22 ; return result
 
     str x0, [sp, -16]!
@@ -682,9 +743,10 @@ _function_call:
     bl _printf
     ldr x0, [sp], 16
 
-    ldp x19, x20, [sp, 16]
-    ldp x21, x22, [sp, 32]
-    ldp fp, lr, [sp], 48
+    ldr x23, [sp, 16]
+    ldp x19, x20, [sp, 32]
+    ldp x21, x22, [sp, 48]
+    ldp fp, lr, [sp], 64
     ret
 
 _function_identifier_not_found_error:
@@ -710,6 +772,7 @@ _function_identifier_invalid_error:
     bl _exit
     ; identifier returned variable entry instead of function entry
 
+
 .data
 .p2align 3
 precedence_table: .quad 0, 1, 1, 2, 2, 3, 3, 3
@@ -727,11 +790,13 @@ if_error1: .asciz "error: if_statement: expected { but found %lu instead\n"
 if_error2: .asciz "error: if_statement: expected } but found %lu instead\n"
 function_call_error1: .asciz "error: function call: symbol table entry not found for identifier %s\n"
 function_call_error2: .asciz "error: function call: symbol table entry for identifier %s associated with variable\n"
+function_call_error3: .asciz "error: function call: expected identifier instead found %lu\n"
 debug_message: .asciz "primary_eval result: %lu\n"
 debug_message1: .asciz "top of opstack is: %lu\n"
 debug_message2: .asciz "expression eval returning %lu\n"
 debug_message3: .asciz "returning %lu from function call\n"
-debug_message4: .asciz "inside expression eval loop with token %lu\n"
+debug_message4: .asciz "inside expression eval loop with token %s\n"
 debug_message5: .asciz "about to check for function call with token %s\n"
 debug_message6: .asciz "function call with token %s\n"
 debug_message7: .asciz "cursor: %lu\n"
+debug_message8: .asciz "eval loop with token: %lu, cursor: %lu\n"

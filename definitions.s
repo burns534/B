@@ -7,30 +7,20 @@
 ; cursor pointer in x1
 ; return cursor in x0
 _variable_definition:
-
     ; load current token and check for var, abort early if not
-    ldr x2, [x1]
-    ldr x8, [x0, x2, lsl 3]
+    ldr x8, [x1]
+    ldr x8, [x0, x8, lsl 3]
     ldr x8, [x8]
-
-    ;stp x0, x1, [sp, -16]!
-    ;stp x8, lr, [sp, -16]!
-    ;adrp x0, debug_message3@page
-    ;add x0, x0, debug_message3@pageoff
-    ;bl _printf
-    ;ldp x8, lr, [sp], 16
-    ;ldp x0, x1, [sp], 16
 
     cmp x8, TS_VAR
     beq 0f
     mov x0, xzr ; return false
     ret
 0:
-    stp x21, x22, [sp, -48]!
-    stp x19, x20, [sp, 32]
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
-
+    stp fp, lr, [sp, -48]!
+    stp x21, x22, [sp, 32]
+    stp x19, x20, [sp, 16]
+    
     mov x19, x0
     mov x22, x1
     ldr x20, [x22] ; load cursor
@@ -58,16 +48,15 @@ _variable_definition:
     str x20, [x22]
     mov x1, x22
     bl _expression_eval ; evaluate rvalue
-    bl _create_variable_entry ; create variable entry with value
-
     ; update cursor after expression eval
     ldr x20, [x22]
+
+    bl _create_variable_entry ; create variable entry with value
 
     ; save entry
     mov x1, x0
     ldr x0, [x21, 8] ; load identifier from token saved earlier
     bl _save_entry
-
     ; assert semicolon
 
     ldr x8, [x19, x20, lsl 3]
@@ -80,9 +69,9 @@ _variable_definition:
 
     mov x0, 1 ; return true
 
-    ldp fp, lr, [sp, 16]
-    ldp x19, x20, [sp, 32]
-    ldp x21, x22, [sp], 48
+    ldp x19, x20, [sp, 16]
+    ldp x21, x22, [sp, 32]
+    ldp fp, lr, [sp], 48
     ret
 
 _variable_definition_runtime_error1:

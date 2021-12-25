@@ -3,6 +3,7 @@
 .globl _s_push
 .globl _s_pop
 .globl _s_top
+.globl _s_destroy
 
 .equ DEFAULT_STACK_CAP, 8 ; 8 quads
 .equ STACK_SIZE, 4 + 4 + 8
@@ -109,6 +110,10 @@ _s_top:
     ldr x9, [x0, 8]
     sxtw x8, w8
     ldr x0, [x9, x8, lsl 3]
+    ret
+
+; stack in x0
+_s_destroy:
     ret
 
 

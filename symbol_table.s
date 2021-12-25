@@ -52,32 +52,66 @@ _create_function_entry:
 ; identifier in x0
 ; pointer to result in x0
 _get_entry:
-    stp fp, lr, [sp, -32]!
-    stp x19, x20, [sp, 16]
-    mov x19, x0 ; save id
+    stp fp, lr, [sp, -48]!
+    stp x19, x20, [sp, 32]
+    str x21, [sp, 16]
+
+    mov x19, x0 ; identifier x19
+
+    bl _print_activation_stack
+
+    adrp x0, debug_message1@page
+    add x0, x0, debug_message1@pageoff
+    str x19, [sp, -16]!
+    bl _printf
+    add sp, sp, 16
+
     adrp x0, symbol_table_address@page
     add x0, x0, symbol_table_address@pageoff
-    ldr x0, [x0]
-    ldr x20, [x0, 8] ; stack data
+    ldr x20, [x0] ; load symbol table
 
-; searching backwards is fine because only one can exist
-0:
-    ldr x0, [x20], 8 ; load map
-    cbz x0, 1f
-    mov x1, x19 ; identifier as arg 1
-    bl _m_contains ; check map at this scope
-    cbz x0, 0b ; if not, check level lower
+    mov x0, x20 ; symbol table
+    mov x1, x19 ; identifier key
+    bl _m_contains ; check containment
+    cbz x0, 0f ; if not, search the scope stack
 
-    ldr x0, [x20, -8]!
+    mov x0, x20
     mov x1, x19
     bl _m_get
-    b 2f
-1:
-    mov x0, xzr
-2:
-    ldp x19, x20, [sp, 16]
-    ldp fp, lr, [sp], 32
+
+    b 10f ; return value from _m_get
+0:
+    ; load the top of the activation record
+    bl _get_activation_stack
+    bl _s_top
+    ldr x8, [x0, 8] ; scope stack of top activation record
+    ldr x20, [x8, 8] ; scope stack data
+
+; will iterate through stack backwards, which is fine because duplicate symbols are not possible
+; also, it must have at least one map at the bottom
+0:
+    ldr x21, [x20], 8 ; load table at entry, post inc 8
+    cbz x21, _get_entry_runtime_error
+    mov x0, x21
+    mov x1, x19 ; identifier
+    bl _m_contains
+    cbz x0, 0b ; contains, return the entry
+
+    mov x0, x21
+    mov x1, x19
+    bl _m_get
+10:
+    ldr x21, [sp, 16]
+    ldp x19, x20, [sp, 32]
+    ldp fp, lr, [sp], 48
     ret
+
+_get_entry_runtime_error:
+    adrp x0, get_entry_error@page
+    add x0, x0, get_entry_error@pageoff
+    bl _puts
+    mov x0, xzr
+    bl _exit
 
 ; identifier in x0
 ; entry in x1
@@ -88,46 +122,75 @@ _save_entry:
 
     mov x19, x0 ; identifier in x19
     mov x20, x1 ; save entry in x20
+
+    ; check if activation stack is empty
+
+    bl _get_activation_stack
+    ldr w8, [x0]
+    cmp w8, -1
+    bne 0f
+
+    ; if activation stack is empty, we are at global scope
+    ; so, just save directly into the global table
+
     adrp x8, symbol_table_address@page
     add x8, x8, symbol_table_address@pageoff
-    ldr x21, [x8] ; symbol table in x21
-    ldr x22, [x21, 8] ; load stack data
-
-; check all scopes for the identifier, stop and save if it is found
-; searching the stack backwards is fine because due to the
-; behavior of this function, there can only ever be one entry
-; for a given identifier in the entire symbol table
-0: 
-    ldr x0, [x22] ; load map
-    cbz x0, 2f ; if zero, we did not find anything
-    mov x1, x19  ; identifier saved from earlier
-    bl _m_contains  ; check if contains identifier
-    cbnz x0, 1f ; if nonzero, then insert in this map
-
-    add x22, x22, 8 ; advance symbol table data pointer
-    b 0b
-1:
-    ; insert at the current scope (update)
-    ldr x0, [x22]
-    mov x1, x19
-    mov x2, x20
+    ldr x0, [x8] ; load table
+    mov x1, x19 ; key (identifier)
+    mov x2, x20 ; entry
     bl _m_insert
-    b 3f
-2:
-    ; nothing contained the entry so add it to the most nested scope
-    mov x0, x21 ; symbol table
+
+    b 10f ; return
+
+0: ; activation stack wasn't empty, so first check global scope
+
+    adrp x8, symbol_table_address@page
+    add x8, x8, symbol_table_address@pageoff
+    ldr x21, [x8] ; load table, save in x21
+
+    mov x0, x21 ; table
+    mov x1, x19 ; key
+    bl _m_contains
+    cbz x0, 1f
+    
+    mov x0, x21 ; table
+    mov x1, x19 ; key
+    mov x2, x20 ; entry
+    bl _m_insert ; insert entry to table
+
+    b 10f ; return
+
+1: ; did not contain, so search the scope stack of top AR
+
+    bl _get_activation_stack
     bl _s_top
+    ldr x8, [x0, 8] ; load scope stack of top AR
+    ldr x21, [x8, 8] ; load scope stack data address
 
-    stp x0, x19, [sp, -16]!
-    adrp x0, debug_message@page
-    add x0, x0, debug_message@pageoff
-    bl _printf
-    ldr x0, [sp], 16
+0:
+    ldr x22, [x21], 8 ; load map
+    cbz x22, 1f ; did not find entry, so insert at the top of the stack
+    mov x0, x22 ; map
+    mov x1, x19 ; key
+    bl _m_contains
+    cbz x0, 0b
 
-    mov x1, x19
-    mov x2, x20
-    bl _m_insert
-3:
+    mov x0, x22 ; map save right above ^
+    mov x1, x19 ; key (identifier)
+    mov x2, x20 ; entry
+    bl _m_insert ; insert the entry at the appropriate lexical scope level
+    b 10f ; return
+1:
+    bl _get_activation_stack
+    bl _s_top
+    ldr x0, [x0, 8] ; load scope stack of top AR
+    bl _s_top ; get table at highest scope
+
+    mov x1, x19 ; key (identifier)
+    mov x2, x20 ; entry
+    bl _m_insert ; insert entry at highest scope of current activation record
+
+10:
     ldp x19, x20, [sp, 16]
     ldp x21, x22, [sp, 32]
     ldp fp, lr, [sp], 48
@@ -135,43 +198,51 @@ _save_entry:
 
 ; notify symbol table to enter new scope
 _enter_scope:
-    stp fp, lr, [sp, -16]!
+    stp fp, lr, [sp, -32]!
+    str x19, [sp, 16]
+
+    adrp x0, enter_scope_message@page
+    add x0, x0, enter_scope_message@pageoff
+    bl _puts
+
+    bl _get_activation_stack
+    bl _s_top ; get top activation record
+    ldr x19, [x0, 8] ; get its scope stack and save in x19
+
     bl _m_create
-    mov x1, x0
-    adrp x0, symbol_table_address@page
-    add x0, x0, symbol_table_address@pageoff
-    ldr x0, [x0]
+    mov x1, x0 ; new table
+    mov x0, x19 ; scope stack
     bl _s_push
-    ldp fp, lr, [sp], 16
+ 
+    ldr x19, [sp, 16]
+    ldp fp, lr, [sp], 32
     ret
 
 ; notify symbol table to exit scope
 _exit_scope:
     stp fp, lr, [sp, -16]!
-    adrp x0, symbol_table_address@page
-    add x0, x0, symbol_table_address@pageoff
-    ldr x0, [x0]
-    bl _s_pop
-    bl _m_destroy ; free memory
+
+    adrp x0, exit_scope_message@page
+    add x0, x0, exit_scope_message@pageoff
+    bl _puts
+
+    bl _get_activation_stack
+    bl _s_top ; get top activation record
+    ldr x0, [x0, 8] ; get its scope stack
+
+    bl _s_pop ; pop the scope stack
+    bl _m_destroy ; destroy result
+
     ldp fp, lr, [sp], 16
     ret
 
 _create_symbol_table:
-    str x19, [sp, -32]!
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
-    bl _s_create
-    mov x19, x0
+    stp fp, lr, [sp, -16]!
     bl _m_create
-    mov x1, x0
-    mov x0, x19
-    bl _s_push
-
-    adrp x1, symbol_table_address@page
-    add x1, x1, symbol_table_address@pageoff
-    str x19, [x1]
-    ldp fp, lr, [sp, 16]
-    ldr x19, [sp], 32
+    adrp x8, symbol_table_address@page
+    add x8, x8, symbol_table_address@pageoff
+    str x0, [x8] ; store at address
+    ldp fp, lr, [sp], 16
     ret
 
 _get_symbol_table:
@@ -187,3 +258,7 @@ symbol_table_address: .quad 0
 
 .section __text,__cstring,cstring_literals
 debug_message: .asciz "about to insert into %p key %s\n"
+debug_message1: .asciz "trying to get entry for key %s\n"
+enter_scope_message: .asciz "entering scope"
+exit_scope_message: .asciz "exiting scope"
+get_entry_error: .asciz "error: get_entry: entry not found\n"
