@@ -2,11 +2,15 @@
 *.txt
 *.b
 *.c
+*.h
 debug.s
 test.s
 output.s
 atest.s
 emitter.s
+parser.s
 test
 ll1
+bc
 a.out
+
