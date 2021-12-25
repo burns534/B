@@ -1,7 +1,7 @@
 .text
 .p2align 2
 .globl _lex
-.equ keyword_bytes, 8 * 8
+.equ keyword_bytes, 8 * 9
 .include "types.s"
 ; FIXME - comment after integer causes infinite loop for some reason
 
@@ -189,40 +189,45 @@ _integer_token:
     ldp fp, lr, [sp], 16
     ret
 
+; w20 current char
+; x21 buffer
+; x22 buffer index
 _identifier_token:
     stp fp, lr, [sp, -16]!
-    mov w0, w20 ; move current character as argument
-    ; only need to do this move once because w0 holds next char
-    ; after first iteration
-0:
+; identifier must start with letter or _
     cmp w20, '_'
-    beq 2f
+    beq 0f
+    mov w0, w20
     bl _isalpha
-    cbz w0, 1f
-2:
-    strb w20, [x21, x22] ; store char
-    add x22, x22, 1 ; increment buffer index
-    ; get next character
-    mov x0, x19 ; file handler
+    cbnz w0, 0f
+    mov x0, xzr
+    b 10f
+0:  
+    strb w20, [x21, x22] ; write char to buffer
+    add x22, x22, 1 ; increment buffer count
+
+    mov x0, x19
     bl _fgetc
-    mov w20, w0 ; put in w20
-    b 0b
-1:
-    mov x0, xzr ; return value null if we don't create token
-    cbz x22, 2f ; if buffer length is zero, return
 
-    ; now check if it is a keyword
+    cmp w0, '_'
+    beq 0b
+    mov w20, w0
+    bl _isalpha
+    cbnz x0, 0b
+    mov w0, w20
+    bl _isdigit
+    cbnz x0, 0b
+; fallthrough
+
     bl _keyword
-    ; if -1, return identifier
     cmp x0, -1
-    bne 3f
-
-    mov x0, TS_IDENTIFIER
-3:
+    mov x1, TS_IDENTIFIER
+    csel x0, x1, x0, eq
     bl _create_token
-2:
+10:
     ldp fp, lr, [sp], 16
     ret
+
 
 _string_token:
     cmp w20, '"' ; check if current char is double quote
@@ -330,45 +335,6 @@ _keyword:
     ldp fp, lr, [sp, 16]
     add sp, sp, 32
     ret
-
-; I'm not sure this ever worked right...
-; accept type in as quad in x0
-; return token in x0
-_create_l1_token:
-    sub sp, sp, 48
-    stp fp, lr, [sp, 32]
-    stp x27, x28, [sp, 16]
-    str x26, [sp]
-    add fp, sp, 32
-
-    adrp x26, token@page
-    add x26, x26, token@pageoff
-    ; sign extend type
-    sxtw x0, w0
-    str x0, [x26] ; store type in first quad
-
-    ; allocate memory for buffer
-    ; x21 is buffer, x22 is length
-    ; null terminate string
-    str xzr, [x21, x22]
-    ; allocate memory plus newline
-    add x27, x22, 1
-    bl _malloc ; why is malloc's argument the type of the token?
-    mov x28, x0 ; address of new memory location in x28
-    mov x1, x21 ; buffer
-    mov x2, x27 ; max copy length
-    bl ___strcpy_chk ; copy buffer to new memory including null char
-
-    str x28, [x26, 8] ; store pointer to string
-    mov x22, xzr ; buffer length to zero
-    mov x0, x26 ; return pointer to token memory
-
-    ldr x26, [sp]
-    ldp x27, x28, [sp, 16]
-    ldp fp, lr, [sp, 32]
-    add sp, sp, 48
-    ret
-
 ; accept type in as quad in x0
 ; return token in x0
 _create_token:
@@ -417,6 +383,7 @@ token: .quad 0, 0 ; this was for when the parser was ll1
 keywords:
     .quad break
     .quad continue
+    .quad else
     .quad func
     .quad if
     .quad return
@@ -426,6 +393,7 @@ keywords:
 
 break: .asciz "break"
 continue: .asciz "continue"
+else: .asciz "else"
 func: .asciz "func"
 if: .asciz "if"
 return: .asciz "return"

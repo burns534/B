@@ -5,9 +5,11 @@
 .globl _exit_scope
 .globl _get_entry
 .globl _save_entry
+.globl _get_symbol_table
+.globl _create_function_entry
+.globl _create_variable_entry
 
-.equ VARIABLE_TYPE, 64
-.equ FUNCTION_TYPE, 65
+.include "types.s"
 
 ; value in x0
 ; result in x0
@@ -77,7 +79,6 @@ _get_entry:
     ldp fp, lr, [sp], 32
     ret
 
-; check this tomorrow.....
 ; identifier in x0
 ; entry in x1
 _save_entry:
@@ -97,8 +98,8 @@ _save_entry:
 ; behavior of this function, there can only ever be one entry
 ; for a given identifier in the entire symbol table
 0: 
-    ldr x0, [x22], 8 ; load map
-    cbz x0, 2f
+    ldr x0, [x22] ; load map
+    cbz x0, 2f ; if zero, we did not find anything
     mov x1, x19  ; identifier saved from earlier
     bl _m_contains  ; check if contains identifier
     cbnz x0, 1f ; if nonzero, then insert in this map
@@ -106,7 +107,7 @@ _save_entry:
     add x22, x22, 8 ; advance symbol table data pointer
     b 0b
 1:
-    ; add at the current scope
+    ; insert at the current scope (update)
     ldr x0, [x22]
     mov x1, x19
     mov x2, x20
@@ -116,6 +117,13 @@ _save_entry:
     ; nothing contained the entry so add it to the most nested scope
     mov x0, x21 ; symbol table
     bl _s_top
+
+    stp x0, x19, [sp, -16]!
+    adrp x0, debug_message@page
+    add x0, x0, debug_message@pageoff
+    bl _printf
+    ldr x0, [sp], 16
+
     mov x1, x19
     mov x2, x20
     bl _m_insert
@@ -144,6 +152,7 @@ _exit_scope:
     add x0, x0, symbol_table_address@pageoff
     ldr x0, [x0]
     bl _s_pop
+    bl _m_destroy ; free memory
     ldp fp, lr, [sp], 16
     ret
 
@@ -165,8 +174,16 @@ _create_symbol_table:
     ldr x19, [sp], 32
     ret
 
+_get_symbol_table:
+    adrp x0, symbol_table_address@page
+    add x0, x0, symbol_table_address@pageoff
+    ldr x0, [x0]
+    ret
 
 
 .data
 .p2align 3
-symbol_table_address: .quad
+symbol_table_address: .quad 0
+
+.section __text,__cstring,cstring_literals
+debug_message: .asciz "about to insert into %p key %s\n"

@@ -5,6 +5,7 @@
 .globl _m_contains
 .globl _m_get
 .globl _m_remove
+.globl _m_destroy
 
 .equ MAP_SIZE, 24 ; bytes
 .equ DEFAULT_MAP_CAP, 8 ; quads
@@ -348,6 +349,21 @@ _m_remove:
 2:
     ldp fp, lr, [sp, 16]
     ldp x19, x20, [sp], 32
+    ret
+
+; map in x0
+_m_destroy:
+    stp fp, lr, [sp, -32]!
+    str x19, [sp, 16]
+    mov x19, x0
+    ldr x0, [x0, 8] ; keys
+    bl _free
+    ldr x0, [x19, 16]
+    bl _free
+    mov x0, x19
+    bl _free
+    ldr x19, [sp, 16]
+    ldp fp, lr, [sp], 32
     ret
 
 ; accepts string in x0
