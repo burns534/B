@@ -1,8 +1,8 @@
+.include "types.s"
+.include "keywords.s"
 .text
 .p2align 2
 .globl _lex
-.equ keyword_bytes, 8 * 9
-.include "types.s"
 ; FIXME - comment after integer causes infinite loop for some reason
 
 ; token layout
@@ -67,26 +67,87 @@ _lex:
     mov w24, TS_MUL
     beq 1f
     cmp w20, '@'
-    mov w24, TS_PTR
+    mov w24, TS_PTR ; didn't want to distinguish between * unary and * binary
     beq 1f
     cmp w20, '%'
     mov w24, TS_MOD
     beq 1f
     cmp w20, '='
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_EQ
+    beq 1f
+
+    ; otherwise, unget the character and set adr operator
+    mov x1, x19
+    bl _ungetc
     mov w24, TS_ASSIGN
-    beq 1f
+    b 1f
+3:
     cmp w20, '<'
-    mov w24, TS_LT
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_LE
     beq 1f
+
+    ; otherwise, unget the character and set adr operator
+    mov x1, x19
+    bl _ungetc
+    mov w24, TS_LT
+    b 1f
+3:
+    cmp w20, '>'
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_GE
+    beq 1f
+
+    ; otherwise, unget the character and set adr operator
+    mov x1, x19
+    bl _ungetc
+    mov w24, TS_GT
+    b 1f
+3:
     cmp w20, '!'
     mov w24, TS_NOT
     beq 1f
-    cmp w20, '?'
-    mov w24, TS_EQ
-    beq 1f
     cmp w20, '&'
-    mov w24, TS_ADR
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '&'
+    mov w24, TS_AND
     beq 1f
+
+    ; otherwise, unget the character and set adr operator
+    mov x1, x19
+    bl _ungetc
+    mov w24, TS_ADR
+    b 1f
+3:
+    cmp w20, '|'
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '|'
+    mov w24, TS_OR
+    beq 1f
+
+    ; otherwise, unget the character and fall through
+    mov x1, x19
+    bl _ungetc
+3:
     cmp w20, '('
     mov w24, TS_OPEN_PAREN
     beq 1f
@@ -208,10 +269,10 @@ _identifier_token:
 
     mov x0, x19
     bl _fgetc
-
+    mov w20, w0 ; set current char
+    
     cmp w0, '_'
     beq 0b
-    mov w20, w0
     bl _isalpha
     cbnz x0, 0b
     mov w0, w20
@@ -377,29 +438,6 @@ _create_token:
 buffer: .skip 256 ; for buffer
 current_char: .byte 0
 token: .quad 0, 0 ; this was for when the parser was ll1
-
-; 9 keywords
-.p2align 3
-keywords:
-    .quad break
-    .quad continue
-    .quad else
-    .quad func
-    .quad if
-    .quad return
-    .quad struct
-    .quad var
-    .quad while
-
-break: .asciz "break"
-continue: .asciz "continue"
-else: .asciz "else"
-func: .asciz "func"
-if: .asciz "if"
-return: .asciz "return"
-struct: .asciz "struct"
-var: .asciz "var"
-while: .asciz "while"
 
 .section __TEXT,__cstring,cstring_literals
 error_string: .asciz "error: invalid token %c\n"

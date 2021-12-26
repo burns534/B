@@ -7,7 +7,7 @@
 .globl _m_remove
 .globl _m_destroy
 
-.equ MAP_SIZE, 24 ; bytes
+.equ MAP_SIZE, 4 + 4 + 8 + 8 ; bytes
 .equ DEFAULT_MAP_CAP, 8 ; quads
 .equ DUMMY, -1
 .equ AVAIL, 0
@@ -19,52 +19,48 @@
 
 ; returns map in x0
 _m_create:
-    str x19, [sp, -32]!
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
+    stp fp, lr, [sp, -32]!
+    str x19, [sp, 16]
+
     mov x0, MAP_SIZE
     bl _malloc
-    ; write count
-    str wzr, [x0]
+    mov x19, x0 ; save map to return later
+
+    str wzr, [x0] ; write count as zero
     ; write cap
     mov w1, DEFAULT_MAP_CAP
-    str w1, [x0, 4]
-    ; save
-    mov x19, x0
+    str w1, [x0, 4] ; write capacity
 
-    ; allocate keys
-    lsl w1, w1, 3
-    mov w0, w1
-    bl _malloc
+    ; allocate keys (must be zeroed)
+    sxtw x0, w1 ; array of 8
+    mov x1, 8 ; with 8 byte alignment
+    bl _calloc
 
     ; write keys
     str x0, [x19, 8]
 
-    ; allocate data
-    mov w0, w1
+    ; allocate data, don't have to be zero
+    mov x0, DEFAULT_MAP_CAP
+    lsl x0, x0, 3 ; quad
     bl _malloc
 
-    ; write data
-
-    str x0, [x19, 16]
+    str x0, [x19, 16] ; write data array at its offset
 
     mov x0, x19 ; return map
     
-    ldp fp, lr, [sp, 16]
-    ldr x19, [sp], 32
+    ldr x19, [sp, 16]
+    ldp fp, lr, [sp], 32
     ret
 
 ; map in x0
 .globl _m_resize
 _m_resize:
-    stp x21, x22, [sp, -48]!
-    stp x19, x20, [sp, 32]
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
+    stp fp, lr, [sp, -48]!
+    stp x21, x22, [sp, 32]
+    stp x19, x20, [sp, 16]
 
     mov x19, x0 ; save map in x19
     ldr w20, [x0, 4] ; old cap in x20
-    sxtw x20, w20
     lsl w21, w20, 1 ; new cap
     str w21, [x0, 4] ; write new cap
     ldr x22, [x19, 16] ; save old values
@@ -73,11 +69,13 @@ _m_resize:
     bl _malloc
     str x0, [x19, 16]; write as new values
 
-    lsl x0, x21, 3
-    bl _malloc
+    sxtw x0, w21
+    mov x1, 8 ; 8 byte, quad alignment
+    bl _calloc
     ldr x21, [x19, 8] ; save old keys
     str x0, [x19, 8] ; write as new keys
     
+    sxtw x20, w20
     lsl x20, x20, 3
 0:
     subs x20, x20, 8
@@ -91,9 +89,10 @@ _m_resize:
     cmp x20, 8
     bge 0b
 1:
-    ldp fp, lr, [sp, 16]
-    ldp x19, x20, [sp, 32]
-    ldp x21, x22, [sp], 48
+
+    ldp x19, x20, [sp, 16]
+    ldp x21, x22, [sp, 32]
+    ldp fp, lr, [sp], 48
     ret
     
 ; map in x0
@@ -295,15 +294,14 @@ _m_remove:
     cbnz w2, 0f
     ret
 0:
-    stp x19, x20, [sp, -32]!
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
+    stp fp, lr, [sp, -32]!
+    stp x19, x20, [sp, 16]
 
     mov x19, x0 ; save map in x19
+    mov x20, x1 ; save key in x20
 
     ; calculate hash of key
     mov x0, x1
-    mov x20, x1 ; save key for later
     bl _m_hash
 
     ; load cap
@@ -347,8 +345,8 @@ _m_remove:
     sub w1, w1, 1
     str w1, [x19]
 2:
-    ldp fp, lr, [sp, 16]
-    ldp x19, x20, [sp], 32
+    ldp x19, x20, [sp, 16]
+    ldp fp, lr, [sp], 32
     ret
 
 ; map in x0

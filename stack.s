@@ -49,9 +49,8 @@ _s_create:
 ; accept stack in x0
 ; quad value in x1
 _s_push:
-    stp x19, x20, [sp, -32]!
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
+    stp fp, lr, [sp, -32]!
+    stp x19, x20, [sp, 16]
 
     mov x19, x0 ; use x19 for stack
     mov x20, x1 ; use x20 for value
@@ -86,8 +85,8 @@ _s_push:
     add x9, x9, 1
     str xzr, [x8, x9, lsl 3]
 
-    ldp fp, lr, [sp, 16]
-    ldp x19, x20, [sp], 32
+    ldp x19, x20, [sp, 16]
+    ldp fp, lr, [sp], 32
     ret
 ; accept stack in x0
 ; return value in x0
@@ -97,28 +96,48 @@ _s_pop:
     ; guard to make sure stack isn't empty
     cmp w8, -1
     bgt 0f
+    mov x0, xzr ; return zero
     ret
 0:
-    sxtw x8, w8
+    sxtw x10, w8
     ldr x9, [x0, 8] ; data
-    ldr x10, [x9, x8, lsl 3] ; access value at top of stack, x0 for return
-    str xzr, [x9, x8, lsl 3] ; overwrite value with zero
-    subs x8, x8, 1 ; decrement top
+    ldr x11, [x9, x10, lsl 3] ; access value at top of stack, x0 for return
+    str xzr, [x9, x10, lsl 3] ; overwrite value with zero
+    subs w8, w8, 1 ; decrement top
     str w8, [x0] ; write new top
-    mov x0, x10 ; return value
+    mov x0, x11 ; return value
     ret
 ; stack in x0
 ; value in x0
 _s_top:
-    ; load current count
     ldr w8, [x0]
+    cmp w8, -1
+    bgt 0f
+    mov x0, xzr ; return zero
+    ret
+0:
+    ; load current top
     ldr x9, [x0, 8]
     sxtw x8, w8
     ldr x0, [x9, x8, lsl 3]
     ret
 
 ; stack in x0
+; simply deallocates stack and its data
 _s_destroy:
+    stp fp, lr, [sp, -32]!
+    str x19, [sp, 16]
+
+    mov x19, x0 ; save
+    
+    ldr x0, [x0, 8]
+    bl _free
+
+    mov x0, x19
+    bl _free
+
+    ldr x19, [sp, 16]
+    ldp fp, lr, [sp], 32
     ret
 
 ; stack in x0

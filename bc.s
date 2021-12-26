@@ -8,6 +8,8 @@
 .globl _primary_eval
 .globl _binary_eval
 .globl _expression_eval
+.globl _skip_to_end
+.globl _function_call
 
 ;.globl _main
 _main:
@@ -65,9 +67,9 @@ _unary_eval:
 _primary_eval:
     stp fp, lr, [sp, -16]!
 
-    str x0, [sp, -16]!
-    bl _print_activation_stack
-    ldr x0, [sp], 16
+    ;str x0, [sp, -16]!
+    ;bl _print_activation_stack
+    ;ldr x0, [sp], 16
 
     ldr x1, [x0] ; load token type
     cmp x1, TS_INTEGER
@@ -111,7 +113,7 @@ _binary_eval:
 0:
     cmp x3, TS_SUB
     bne 1f
-    sub x0, x1, x0
+    subs x0, x1, x0
     ret
 1:
     cmp x3, TS_MUL
@@ -142,6 +144,38 @@ _binary_eval:
     cset x0, lt
     ret
 6:
+    cmp x3, TS_GT
+    bne 7f
+    cmp x1, x0
+    cset x0, gt
+    ret
+7: 
+    cmp x3, TS_LE
+    bne 8f
+    cmp x1, x0
+    cset x0, le
+    ret
+8: 
+    cmp x3, TS_GE
+    bne 9f
+    cmp x1, x0
+    cset x0, ge
+    ret
+9:
+    cmp x3, TS_AND
+    bne 10f
+    and x0, x1, x0 ; bitwise and
+    cmp x0, 0
+    cset x0, gt
+    ret
+10:
+    cmp x3, TS_OR
+    bne 11f
+    orr x0, x1, x0 ; bitwise or
+    cmp x0, 0
+    cset x0, gt
+    ret
+11:
     str x3, [sp]
     stp x1, x0, [sp, 8]
     adrp x0, binary_error@page
@@ -150,28 +184,37 @@ _binary_eval:
     mov w0, 1
     b _exit
 
+; opstack x0
+; outstack x1
 _eval_push:
-    stp fp, lr, [sp, -16]!
-    mov x0, x21 ; opstack
+    stp fp, lr, [sp, -48]!
+    stp x21, x22, [sp, 32]
+    stp x19, x20, [sp, 16]
+
+    mov x19, x0 ; opstack
+    mov x20, x1 ; outstack
+
     bl _s_pop ; pop operator stack
-    mov x23, x0 ; save operator
+    mov x21, x0 ; save operator x21
 
-    mov x0, x22
+    mov x0, x20 ; outstack
     bl _s_pop ; pop outstack
-    mov x24, x0 ; save operand 1
+    mov x22, x0 ; save operand 2
 
-    mov x0, x22
+    mov x0, x20 ; oustack
     bl _s_pop
-    mov x1, x0
-    mov x2, x23
-    mov x0, x24
+    mov x1, x0 ; result as arg1, operand 1
+    mov x0, x22 ; operand 2
+    mov x2, x21 ; operation
     bl _binary_eval ; evaluate
 
-    mov x1, x0
-    mov x0, x22
+    mov x1, x0 ; move result to arg1
+    mov x0, x20
     bl _s_push ; push result to outstack
 
-    ldp fp, lr, [sp], 16
+    ldp x19, x20, [sp, 16]
+    ldp x21, x22, [sp, 32]
+    ldp fp, lr, [sp], 48
     ret
 
 ; tokens in x0
@@ -183,9 +226,11 @@ _expression_eval:
     stp x23, x24, [sp, 48]
     stp x21, x22, [sp, 32]
     stp x19, x20, [sp, 16]
-    mov x19, x0 ; tokens
-    mov x25, x1 ; cursor *
-    ldr x20, [x25] ; cursor
+
+    mov x19, x0 ; tokens x19
+    mov x25, x1 ; cursor pointer x25
+    ldr x20, [x25] ; cursor x20
+    
     bl _s_create
     mov x21, x0 ; opstack
     bl _s_create
@@ -206,7 +251,7 @@ _expression_eval:
     ldp x8, x12, [sp], 16
 
 ; check if operator
-    cmp x8, TS_EQ
+    cmp x8, TS_AND
     blt 1f
     cmp x8, TS_MOD
     bgt 1f
@@ -214,6 +259,16 @@ _expression_eval:
 10:
     mov x0, x21 ; opstack
     bl _s_top
+
+    stp x0, x12, [sp, -16]!
+    adrp x0, debug_message1@page
+    add x0, x0, debug_message1@pageoff
+    bl _printf
+    mov x0, x21
+    bl _print_stack
+    ldp x0, x12, [sp], 16
+
+
     cbz x0, 11f ; if empty, break
     ldr x0, [x0] ; type
     cmp x0, TS_OPEN_PAREN
@@ -228,6 +283,8 @@ _expression_eval:
     blt 11f ; if less, break
 
     ; otherwise, push outstack with binary eval of top two operands and top of opstack
+    mov x0, x21 ; opstack
+    mov x1, x22 ; outstack
     bl _eval_push
     b 10b
 11:
@@ -264,6 +321,8 @@ _expression_eval:
     cbz x8, 21f
     cmp x8, TS_OPEN_PAREN
     beq 21f
+    mov x0, x21
+    mov x1, x22
     bl _eval_push
     b 20b
 21:
@@ -280,6 +339,8 @@ _expression_eval:
     beq 6f
     cmp x8, TS_IDENTIFIER
     beq 6f
+    cmp x8, TS_NEW
+    beq 30f
 
     b 0f ; end loop
 6:
@@ -327,12 +388,27 @@ _expression_eval:
     add x20, x20, 1 ; increment cursor
     b 0b
 
+30:
+    add x20, x20, 1 ; increment cursor past new keyword
+
+    mov x0, x19 ; load tokens as arg0
+    str x20, [x25] ; update cursor pointer to after new keyword
+    mov x1, x25 ; set pointer as arg1
+
+    bl _expression_eval ; evaluate argument for new
+
+    bl _malloc ; allocate requested number of bytes
+    ; return pointer is in x0
+    b 2f ; return from this expression eval call
+
 ; now evaluate the rest of the stack
 0:
     mov x0, x21 ; opstack
     bl _s_top
     cbz x0, 1f
 
+    mov x0, x21
+    mov x1, x22
     bl _eval_push
     b 0b ; continue
 1:
@@ -342,16 +418,25 @@ _expression_eval:
 
     mov x0, x22
     bl _s_pop ; return top of outstack
+    mov x19, x0 ; save result
 
-    str x0, [sp, -16]!
+    ; deallocate stacks
+    mov x0, x21
+    bl _s_destroy
+    mov x0, x22
+    bl _s_destroy
+
+    str x19, [sp, -16]!
     adrp x0, debug_message2@page
     add x0, x0, debug_message2@pageoff
     bl _printf
-    ldr x0, [sp], 16
+    add sp, sp, 16
 
     ; adjust cursor
     str x20, [x25]
 
+    mov x0, x19 ; return value
+2:
     ldp x19, x20, [sp, 16]
     ldp x21, x22, [sp, 32]
     ldp x23, x24, [sp, 48]
@@ -410,18 +495,8 @@ _evaluate:
     beq 2f
     cmp x8, TS_CONTINUE
     beq 2f
-
-    mov x0, x19
-    mov x1, x20
-    bl _if_statement
-    cbnz x0, 0b
-    mov x0, x19
-    mov x1, x20
-    bl _while_statement
-    cbnz x0, 0b
-
-    ldr x8, [x19, x21, lsl 3] ; load current token
-    ldr x8, [x8] ; load type
+    cmp x8, TS_DELETE
+    beq 8f
     cmp x8, TS_IDENTIFIER
     bne 1f
     add x9, x21, 1 ; load next token
@@ -438,17 +513,55 @@ _evaluate:
     ldr x21, [x20] ; load cursor
     add x21, x21, 1 ; increment
     str x21, [x20] ; store cursor so it points to next statement
-    
     b 0b
 1:
     mov x0, x19
     mov x1, x20
+    bl _if_statement
+    cbnz x0, 0b
+    mov x0, x19
+    mov x1, x20
+    bl _while_statement
+    cbnz x0, 0b
+    mov x0, x19
+    mov x1, x20
     bl _variable_definition
     cbnz x0, 0b
-
+; might add for statement later
+    ;mov x0, x19
+    ;mov x1, x20
+    ;bl _for_statement
+    ;cbnz x0, 0b
     adrp x0, eval_error1@page
     add x0, x0, eval_error1@pageoff
     bl _runtime_error
+
+8:
+    add x21, x21, 1 ; skip delete token
+
+    ldr x9, [x19, x21, lsl 3] ; load next token
+    ldr x8, [x9] ; type
+    cmp x8, TS_IDENTIFIER
+    bne _eval_error2
+
+    ldr x0, [x9, 8] ; token identifier
+    bl _get_entry
+
+    ldr x0, [x0, 8] ; load value for variable
+
+    bl _free ; free memory
+
+    add x21, x21, 1 ; skip past identifier
+
+    ldr x9, [x19, x21, lsl 3] ; load next token
+    ldr x8, [x9] ; type
+    cmp x8, TS_SEMICOLON
+    bne _eval_error3
+
+    add x21, x21, 1 ; skip semicolon
+    str x21, [x20] ; update cursor pointer
+
+    b 0b ; continue evaluate loop
 
 2:
     str x21, [x20] ; update cursor
@@ -457,7 +570,26 @@ _evaluate:
     ldp x19, x20, [sp, 32]
     ldp fp, lr, [sp], 48
     ret
-    
+
+_eval_error2:
+    adrp x0, eval_error2@page
+    add x0, x0, eval_error2@pageoff
+    str x8, [sp]
+    bl _printf
+
+    mov x0, xzr
+    bl _exit
+
+_eval_error3:
+    adrp x0, eval_error3@page
+    add x0, x0, eval_error3@pageoff
+    str x8, [sp]
+    bl _printf
+
+    mov x0, xzr
+    bl _exit
+
+; call with cursor pointing to the first open bracket
 ; tokens in x0
 ; cursor in x1
 _skip_to_end:
@@ -480,164 +612,6 @@ _skip_to_end:
     str x10, [x1] ; write cursor
     ret
 
-; tokens in x0
-; cursor pointer in x1
-; return x0 1 for true, 0 for false
-_if_statement:
-    ; check for if keyword
-    ldr x9, [x1]
-    ldr x8, [x0, x9, lsl 3] ; load current token
-    ldr x8, [x8] ; load type
-    cmp x8, TS_IF
-    beq 0f
-    mov x0, xzr
-    ret
-0:
-; allocate stack
-    stp fp, lr, [sp, -48]!
-    str x21, [sp, 32]
-    stp x19, x20, [sp, 16]
-
-    mov x19, x0 ; tokens
-    mov x20, x1 ; save cursor pointer
-    add x9, x9, 1 ; skip if token
-    str x9, [x20] ; update cursor pointer
-
-    ; call expression eval on predicate
-    bl _expression_eval
-    cbz x0, 10f
-; perform if statement
-    ldr x21, [x20] ; load cursor
-    ldr x8, [x19, x21, lsl 3] ; load token
-    ldr x8, [x8] ; load type
-    cmp x8, TS_OPEN_CURL_BRACE
-    bne _if_statement_error1
-    ; skip past it
-    add x21, x21, 1
-    str x21, [x20] ; update cursor pointer
-
-    ; enter new scope
-    bl _enter_scope
-
-    mov x0, x19
-    mov x1, x20
-    bl _evaluate ; evaluate the code block
-
-    bl _print_symbol_table
-
-; check for return expr
-    ldr x21, [x20]
-    ldr x8, [x19, x21, lsl 3]
-    ldr x8, [x8] ; type
-    cmp x8, TS_RETURN
-    beq 20f
-
-    ; exit scope
-    bl _exit_scope
-
-; skip past else clause if present
-
-    add x21, x21, 1
-    ldr x8, [x19, x21, lsl 3]
-    ldr x8, [x8]
-    cmp x8, TS_ELSE
-    bne 20f ; return
-
-    ; otherwise loop to last } for else statement
-    add x21, x21, 1 ; skip else statement
-    ldr x8, [x19, x21, lsl 3]
-    ldr x8, [x8]
-    cmp x8, TS_OPEN_CURL_BRACE
-    bne _if_statement_error1
-
-    str x21, [x20] ; update cursor
-
-    mov x0, x19
-    mov x1, x20
-    bl _skip_to_end
-
-    ldr x21, [x20] ; load cursor
-    add x21, x21, 1 ; increment cursor past last close
-
-    b 20f
-
-10:
-; handle else statement or end of if
-    ldr x21, [x20] ; load cursor
-    ldr x8, [x19, x21, lsl 3] ; load token
-    ldr x8, [x8] ; load type
-    cmp x8, TS_OPEN_CURL_BRACE
-    bne _if_statement_error1
-
-    mov x0, x19
-    mov x1, x20
-    bl _skip_to_end
-
-    ldr x21, [x20]
-    add x21, x21, 1 ; increment past close bracket
-
-    ; if there's an else keyword, do that, otherwise return control
-    ldr x8, [x19, x21, lsl 3]
-    ldr x8, [x8] ; type
-    cmp x8, TS_ELSE
-    bne 20f
-
-    add x21, x21, 1 ; skip else
-
-    ldr x8, [x19, x21, lsl 3]
-    ldr x8, [x8]
-    cmp x8, TS_OPEN_CURL_BRACE
-    bne _if_statement_error1
-
-    add x21, x21, 1 ; skip open brace
-    str x21, [x20] ; update cursor
-
-    bl _enter_scope
-
-    mov x0, x19
-    mov x1, x20
-    bl _evaluate
-
-    bl _print_symbol_table
-
-; check for return expr
-    ldr x21, [x20]
-    ldr x8, [x19, x21, lsl 3]
-    ldr x8, [x8] ; type
-    cmp x8, TS_RETURN
-    beq 20f
-
-    ; exit scope
-    bl _exit_scope
-
-    ldr x21, [x20] ; load cursor
-    add x21, x21, 1 ; skip close curl bracket
-
-20:
-    str x21, [x20] ; update cursor
-    mov x0, 1 ; return true
-
-    ldp x19, x20, [sp, 16]
-    ldr x21, [sp, 32]
-    ldp fp, lr, [sp], 48
-    ret
-
-_if_statement_error1:
-    adrp x0, if_error1@page
-    add x0, x0, if_error1@pageoff
-    str x8, [sp]
-    bl _printf
-
-    mov x0, xzr
-    bl _exit
-
-; tokens in x0
-; cursor pointer in x1
-_while_statement:
-    mov x0, xzr
-    ret
-
-.globl _function_call
 ; accept tokens in x0
 ; accept pointer to cursor in x1
 _function_call:
@@ -703,7 +677,7 @@ _function_call:
     bl _print_variable_entry
     ldr x0, [sp], 16
 
-    mov x9, x0 ; move result to arg1, safe from _s_next
+    mov x9, x0 ; move result to arg1, x9 safe from _s_next
     ; get identifier
     ldr x0, [x22, 8] ; parameter stack
     bl _s_next ; get next parameter, clobbers x8, x0, x1
@@ -793,14 +767,14 @@ exp_eval_error: .asciz "expression eval failed on token %lu\n"
 exp_eval_error1: .asciz "outstack top != 0"
 exp_eval_error2: .asciz "top of opstack was not open paren"
 primary_eval_error_message: .asciz "primary expression encountered invalid token %lu\n"
-eval_error1: .asciz "no statement found"
-if_error1: .asciz "error: if_statement: expected { but found %lu instead\n"
-if_error2: .asciz "error: if_statement: expected } but found %lu instead\n"
+eval_error1: .asciz "error: evaluate: no valid statement found"
+eval_error2: .asciz "error: evaluate: expected identifier instead found %lu\n"
+eval_error3: .asciz "error: evaluate: expected semicolon instead found %lu\n"
 function_call_error1: .asciz "error: function call: symbol table entry not found for identifier %s\n"
 function_call_error2: .asciz "error: function call: symbol table entry for identifier %s associated with variable\n"
 function_call_error3: .asciz "error: function call: expected identifier instead found %lu\n"
 debug_message: .asciz "primary_eval result: %lu\n"
-debug_message1: .asciz "top of opstack is: %lu\n"
+debug_message1: .asciz "top of stack: %p\n"
 debug_message2: .asciz "expression eval returning %lu\n"
 debug_message3: .asciz "returning %lu from function call\n"
 debug_message4: .asciz "inside expression eval loop with token %s\n"

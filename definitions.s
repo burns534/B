@@ -5,7 +5,6 @@
 .globl _function_definition
 ; tokens in x0 
 ; cursor pointer in x1
-; return cursor in x0
 _variable_definition:
     ; load current token and check for var, abort early if not
     ldr x8, [x1]
@@ -17,12 +16,13 @@ _variable_definition:
     mov x0, xzr ; return false
     ret
 0:
-    stp fp, lr, [sp, -48]!
+    stp fp, lr, [sp, -64]!
+    stp x23, x24, [sp, 48]
     stp x21, x22, [sp, 32]
     stp x19, x20, [sp, 16]
     
     mov x19, x0
-    mov x22, x1
+    mov x22, x1 ; cursor pointer
     ldr x20, [x22] ; load cursor
     add x20, x20, 1 ; advance cursor to next token
 
@@ -38,9 +38,58 @@ _variable_definition:
     ldr x8, [x19, x20, lsl 3]
     ldr x8, [x8]
     cmp x8, TS_ASSIGN
+    beq 1f
+    cmp x8, TS_OPEN_SQ_BRACE ; array subscript
     bne _variable_definition_runtime_error2
 
     add x20, x20, 1 ; advance cursor
+    mov x0, x19 ; tokens arg0
+    str x20, [x22] ; update cursor pointer
+    mov x1, x22 ; cursor pointer arg1
+    bl _expression_eval ; evaluate either index
+    mov x23, x0 ; save index for later
+    ldr x20, [x22] ; update cursor after expression eval
+    ; cursor should be pointing to close sq bracket
+
+    ldr x8, [x19, x20, lsl 3]
+    ldr x8, [x8] ; type
+    cmp x8, TS_CLOSE_SQ_BRACE
+    bne _variable_definition_runtime_error4
+
+    add x20, x20, 1 ; advance past close bracket
+
+    ; assert assignment operator
+    ldr x8, [x19, x20, lsl 3]
+    ldr x8, [x8] ; type
+    cmp x8, TS_ASSIGN
+    bne _variable_definition_runtime_error2
+
+    add x20, x20, 1 ; advance past assignment operator
+
+    ; evaluate rvalue
+    mov x0, x19
+    str x20, [x22]
+    mov x1, x22
+    bl _expression_eval ; evaluate rvalue
+    mov x24, x0; save rvalue in x24
+
+    ; update cursor after expression eval
+    ldr x20, [x22]
+
+    ldr x0, [x21, 8] ; identifier
+    bl _get_entry ; get entry for identifier
+    ldr x0, [x0, 8] ; load value from variable entry
+
+    ;str x0, [sp, -16]!
+    ;adrp x0, debug_message1@page
+    ;add x0, x0, debug_message1@pageoff
+    ;bl _printf
+    ;ldr x0, [sp], 16
+
+    str x24, [x0, x23, lsl 3] ; store rvalue in address pointed by value with index offset and quad aligment
+    b 2f
+1:
+    add x20, x20, 1 ; advance cursor past assignment operator
 
     ;ldr x0, [x19, x20, lsl 3]
     ;bl _primary_eval ; converts primary expressions to single word
@@ -51,14 +100,16 @@ _variable_definition:
     ; update cursor after expression eval
     ldr x20, [x22]
 
+;; FIXME - this isn't necessary if the variable already exists
     bl _create_variable_entry ; create variable entry with value
 
     ; save entry
     mov x1, x0
     ldr x0, [x21, 8] ; load identifier from token saved earlier
     bl _save_entry
-    ; assert semicolon
 
+ 2:   
+    ; assert semicolon
     ldr x8, [x19, x20, lsl 3]
     ldr x8, [x8]
     cmp x8, TS_SEMICOLON
@@ -71,7 +122,8 @@ _variable_definition:
 
     ldp x19, x20, [sp, 16]
     ldp x21, x22, [sp, 32]
-    ldp fp, lr, [sp], 48
+    ldp x23, x24, [sp, 48]
+    ldp fp, lr, [sp], 64
     ret
 
 _variable_definition_runtime_error1:
@@ -98,13 +150,20 @@ _variable_definition_runtime_error3:
     ; throw runtime error
     adrp x0, variable_def_error3@page
     add x0, x0, variable_def_error3@pageoff
-    str x8, [sp, -16]!
+    str x8, [sp]
     bl _printf
 
     mov w0, 1
     bl _exit
 
+_variable_definition_runtime_error4:
+    adrp x0, variable_def_error4@page
+    add x0, x0, variable_def_error4@pageoff
+    str x8, [sp]
+    bl _printf
 
+    mov w0, 1
+    bl _exit
 ; tokens in x0
 ; cursor pointer in x1
 ; returns 1 if found
@@ -232,7 +291,9 @@ _function_definition_runtime_error:
 
 .section __text,__cstring,cstring_literals
 variable_def_error1: .asciz "error: variable definition: expected identifier instead found %lu\n"
-variable_def_error2: .asciz "error: variable definition: expected assign instead found %lu\n"
+variable_def_error2: .asciz "error: variable definition: expected = or [ instead found %lu\n"
 variable_def_error3: .asciz "error: variable definition: expected semicolon instead found %lu\n"
+variable_def_error4: .asciz "error: variable definition: expected ] instead found %lu\n"
 function_def_error: .asciz "function definition failed on token %lu\n"
 debug_message: .asciz "about to save entry with key: %s\n"
+debug_message1: .asciz "key value: %p\n"

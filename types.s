@@ -1,13 +1,19 @@
 .equ TS_END_PROD, -1
+
 .equ TS_BREAK, 0
 .equ TS_CONTINUE, 1
-.equ TS_ELSE, 2
-.equ TS_FUNC, 3
-.equ TS_IF, 4
-.equ TS_RETURN, 5
-.equ TS_STRUCT, 6
-.equ TS_VAR, 7
-.equ TS_WHILE, 8
+.equ TS_DELETE, 2
+.equ TS_ELSE, 3
+
+.equ TS_FOR, 4
+.equ TS_FUNC, 5
+.equ TS_IF, 6
+.equ TS_NEW, 7
+
+.equ TS_RETURN, 8
+.equ TS_STRUCT, 9
+.equ TS_VAR, 10
+.equ TS_WHILE, 11
 
 .equ TS_INTEGER, 20
 .equ TS_IDENTIFIER, 21
@@ -19,19 +25,25 @@
 
 .equ TS_ASSIGN, 50
 
-.equ TS_EQ, 51
-.equ TS_LT, 52
+.equ TS_AND, 51
+.equ TS_OR, 52
 
-.equ TS_ADD, 53
-.equ TS_SUB, 54
+.equ TS_EQ, 53
+.equ TS_LT, 54
+.equ TS_GT, 55
+.equ TS_LE, 56
+.equ TS_GE, 57
 
-.equ TS_DIV, 55
-.equ TS_MUL, 56
-.equ TS_MOD, 57
+.equ TS_ADD, 58
+.equ TS_SUB, 59
 
-.equ TS_NOT, 58
-.equ TS_ADR, 59
-.equ TS_PTR, 60
+.equ TS_DIV, 60
+.equ TS_MUL, 61
+.equ TS_MOD, 62
+
+.equ TS_NOT, 63
+.equ TS_ADR, 64
+.equ TS_PTR, 65
 
 .equ TS_OPEN_PAREN, 100
 .equ TS_CLOSE_PAREN, 101

@@ -27,7 +27,7 @@ _create_activation_record:
     mov x19, x0 ; save entry
 
     bl _s_create ; create scope stack
-    str x0, [x19, 8] ; store map in entry
+    str x0, [x19, 8] ; store scope stack in entry
     mov x20, x0 ; save scope stack
 
     bl _m_create
@@ -43,10 +43,17 @@ _create_activation_record:
 
 _create_activation_stack:
     stp fp, lr, [sp, -16]!
+
     bl _s_create
     adrp x8, _activation_stack@page
     add x8, x8, _activation_stack@pageoff
     str x0, [x8] ; save return stack
+
+    bl _s_create
+    adrp x8, _variable_binding_stack@page
+    add x8, x8, _variable_binding_stack@pageoff
+    str x0, [x8] ; save variable binding stack
+
     ldp fp, lr, [sp], 16
     ret
 
@@ -120,9 +127,11 @@ _get_activation_stack:
 _start_variable_binding:
     stp fp, lr, [sp, -16]!
     bl _create_activation_record
-    adrp x8, _temporary_activation_record@page
-    add x8, x8, _temporary_activation_record@pageoff
-    str x0, [x8]
+    mov x1, x0
+    adrp x8, _variable_binding_stack@page
+    add x8, x8, _variable_binding_stack@pageoff
+    ldr x0, [x8] ; variable binding stack
+    bl _s_push ; push activation record to variable binding stack
     ldp fp, lr, [sp], 16
     ret
 
@@ -130,9 +139,11 @@ _start_variable_binding:
 _end_variable_binding:
     stp fp, lr, [sp, -16]!
 
-    adrp x8, _temporary_activation_record@page
-    add x8, x8, _temporary_activation_record@pageoff
-    ldr x1, [x8] ; load activation record
+    adrp x8, _variable_binding_stack@page
+    add x8, x8, _variable_binding_stack@pageoff
+    ldr x0, [x8] ; load activation record
+    bl _s_pop
+    mov x1, x0 ; move as arg1 for push to activation stack
 
     adrp x8, _activation_stack@page
     add x8, x8, _activation_stack@pageoff
@@ -152,10 +163,12 @@ _bind_variable:
     mov x19, x0
     mov x20, x1
 
-    adrp x8, _temporary_activation_record@page
-    add x8, x8, _temporary_activation_record@pageoff
-    ldr x8, [x8] ; load AR
-    ldr x0, [x8, 8] ; AR's scope stack
+    adrp x8, _variable_binding_stack@page
+    add x8, x8, _variable_binding_stack@pageoff
+    ldr x0, [x8]
+    bl _s_top ; get top record
+
+    ldr x0, [x0, 8] ; get AR's scope stack
     bl _s_top ; get table
 
     mov x1, x19
@@ -169,4 +182,4 @@ _bind_variable:
 .data
 .p2align 3
 _activation_stack: .quad 0
-_temporary_activation_record: .quad 0
+_variable_binding_stack: .quad 0
