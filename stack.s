@@ -4,16 +4,19 @@
 .globl _s_pop
 .globl _s_top
 .globl _s_destroy
+.globl _s_start_iterator
+.globl _s_next
 
 .equ DEFAULT_STACK_CAP, 8 ; 8 quads
-.equ STACK_SIZE, 4 + 4 + 8
+.equ STACK_SIZE, 4 + 4 + 8 + 4
 
 .p2align 2
 
-; stack requires 16 bytes.
-; word top + 0
-; word capacity + 4
-; quad data + 8
+; stack requires 20 bytes.
+; word top      +0
+; word capacity +4
+; quad data     +8
+; word iterator +16
 
 ; return stack in x0
 _s_create:
@@ -29,6 +32,8 @@ _s_create:
 
     mov w1, DEFAULT_STACK_CAP
     str w1, [x0, 4] ; set capacity
+
+    str wzr, [x0, 16] ; set iterator 0
 
     ; allocate data
     mov w0, w1
@@ -114,6 +119,22 @@ _s_top:
 
 ; stack in x0
 _s_destroy:
+    ret
+
+; stack in x0
+_s_start_iterator:
+    str wzr, [x0, 16] ; set iterator to bottom of stack
+    ret
+
+; stack in x0
+_s_next:
+    ldr w8, [x0, 16] ; load iterator
+    sxtw x8, w8
+    ldr x1, [x0, 8] ; data
+    ldr x1, [x1, x8, lsl 3] ; load return value
+    add w8, w8, 1
+    str w8, [x0, 16] ; update iterator
+    mov x0, x1
     ret
 
 

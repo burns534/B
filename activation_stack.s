@@ -164,7 +164,6 @@ _bind_variable:
 
     ldp x19, x20, [sp, 16]
     ldp fp, lr, [sp], 32
-    
     ret
 
 .data

@@ -679,6 +679,9 @@ _function_call:
 
     bl _start_variable_binding ; start variable binding context
 
+    ldr x0, [x22, 8] ; parameter stack for function
+    bl _s_start_iterator ; get next parameter
+
 ; bind parameters
 0:
     ldr x8, [x19, x21, lsl 3] ; load token
@@ -696,11 +699,16 @@ _function_call:
 
     bl _create_variable_entry ; create variable entry with exp result
 
-    mov x1, x0 ; move result to arg1
+    str x0, [sp, -16]!
+    bl _print_variable_entry
+    ldr x0, [sp], 16
+
+    mov x9, x0 ; move result to arg1, safe from _s_next
     ; get identifier
     ldr x0, [x22, 8] ; parameter stack
-    bl _s_pop ; get next parameter
+    bl _s_next ; get next parameter, clobbers x8, x0, x1
 
+    mov x1, x9
     bl _bind_variable ; save entry
     
     b 0b
