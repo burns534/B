@@ -6,6 +6,10 @@
 .globl _m_get
 .globl _m_remove
 .globl _m_destroy
+.globl _m_strcmp
+.globl _m_resize
+.globl _m_insert_util
+; FIXME - needs to be rewritten in an optimized way
 
 .equ MAP_SIZE, 4 + 4 + 8 + 8 ; bytes
 .equ DEFAULT_MAP_CAP, 8 ; quads
@@ -53,105 +57,107 @@ _m_create:
     ret
 
 ; map in x0
-.globl _m_resize
 _m_resize:
-    stp fp, lr, [sp, -48]!
-    stp x21, x22, [sp, 32]
-    stp x19, x20, [sp, 16]
-
-    mov x19, x0 ; save map in x19
+    stp fp, lr, [sp, -64]!
+    stp x21, x22, [sp, 48]
+    stp x19, x20, [sp, 32]
+    stp x1, x2, [sp, 16] ; guaranteed not to clobber x0, x1, x2
+    
+    mov x19, x0 ; map x19
     ldr w20, [x0, 4] ; old cap in x20
-    lsl w21, w20, 1 ; new cap
-    str w21, [x0, 4] ; write new cap
-    ldr x22, [x19, 16] ; save old values
 
-    lsl x0, x21, 3
+    lsl w21, w20, 1 ; double capacity and save in w21
+    str w21, [x0, 4] ; write new capacity in map structure
+
+    ldr x22, [x19, 16] ; save current values pointer x22
+
+; allocate values
+    lsl w0, w21, 3 ; quad alignment
     bl _malloc
-    str x0, [x19, 16]; write as new values
+    str x0, [x19, 16] ; write as new values
 
-    sxtw x0, w21
+    mov w0, w21
     mov x1, 8 ; 8 byte, quad alignment
     bl _calloc
     ldr x21, [x19, 8] ; save old keys
     str x0, [x19, 8] ; write as new keys
     
-    sxtw x20, w20
-    lsl x20, x20, 3
+    lsl w20, w20, 3 ; shift capacity to use as direct offset
 0:
-    subs x20, x20, 8
-    ldr x1, [x21, x20]
+    subs w20, w20, 8
+    ldr x1, [x21, x20] ; key
     cmp x1, 0
     ble 2f
-    ldr x2, [x22, x20]
+    ldr x2, [x22, x20] ; value
     mov x0, x19
     bl _m_insert_util
 2:
-    cmp x20, 8
-    bge 0b
+    cbnz w20, 8
 1:
-
-    ldp x19, x20, [sp, 16]
-    ldp x21, x22, [sp, 32]
-    ldp fp, lr, [sp], 48
+    mov x0, x19 ; restore x0
+    ldp x1, x2, [sp, 16]
+    ldp x19, x20, [sp, 32]
+    ldp x21, x22, [sp, 48]
+    ldp fp, lr, [sp], 64
     ret
     
+    ; could be optimized even further by allocating keys and values in the same block
+    ; and using stp to store the key and value next to each other
+    ; much better cache performance also
 ; map in x0
 ; key in x1
 ; value in x2
-.globl _m_insert_util
-_m_insert_util:
-    str x19, [sp, -48]!
-    stp x20, x21, [sp, 32]
-    stp fp, lr, [sp, 16]
-    add fp, sp, 16
+_m_insert_util: ; clobbers x0, x1, x2, x8, x9, x10, x11, x12, x13, x14
+    stp fp, lr, [sp, -16]!
+    mov x8, x0 ; map
+    mov x9, x1 ; key
+    mov x10, x2 ; value
 
-    mov x19, x0
-    mov x20, x1
-    mov x21, x2
+    stp x8, x9, [sp, -32]!
+    str x10, [sp, 16]
 
-    mov x0, x1
-    bl _m_hash
-    mov x4, x0 ; this is not disturbed by hash
+    adrp x0, debug_message@page
+    add x0, x0, debug_message@pageoff
 
-    ldr w1, [x19, 4]
-    sxtw x1, w1
+    bl _printf
 
-    udiv x2, x0, x1
-    msub x0, x1, x2, x0
+    ldr x10, [sp, 16]
+    ldp x8, x9, [sp], 32
 
-    ldr x2, [x19, 8] ; load keys in x2
+    mov x0, x9
+    bl _m_hash ; calculate hash of key, clobbers x0, x1, x2
+
+    ldr w11, [x8, 4] ; load capacity
+    lsl w11, w11, 3 ; quad alignment to avoid doing it repeatedly
+    sub w11, w11, 1 ; for optimized modulo operation
+
+    ldr x12, [x8, 8] ; keys
+
+    and x14, xzr, x14
+    subs x14, x14, 8
 0:
-    ldr x3, [x2, x0, lsl 3]
-    cbz x3, 2f
-    cmp x3, DUMMY
-    beq 1f
-; FIXME this needs to be strcmp
-    ; check if equal
-    stp x0, x1, [sp, -32]!
-    stp x2, x3, [sp, 16]
-    mov x0, x3
-    bl _m_hash
-    mov x5, x0
-    ldp x2, x3, [sp, 16]
-    ldp x0, x1, [sp], 32
-    cmp x5, x4
-    beq 2f
+; this calculates modulo for divisors of power 2
+    adds w14, w14, 8
+    and w14, w14, w11 ; hash in w14
+
+    ldr x13, [x12, x14] ; load key
+    cmp x13, 0
+    blt 0b ; dummy
+    beq 1f ; insert
+
+    ; nonzero, check string
+    mov x0, x9 ; key
+    mov x1, x13 ; current key
+    bl _m_strcmp ; clobbers x0, x1, x2, x3
+    cbnz w0, 0b ; continue if not equal
+
 1:
-    add x0, x0, 1
-    udiv x3, x0, x1
-    msub x0, x3, x1, x0
-    b 0b
-2:
-    str x20, [x2, x0, lsl 3]
-    ldr x2, [x19, 16]
-    str x21, [x2, x0, lsl 3]
+    str x9, [x12, x14] ; write key
+    ldr x12, [x8, 16] ; values
+    str x10, [x12, x14] ; write value
 
-    ldp fp, lr, [sp, 16]
-    ldp x20, x21, [sp, 32]
-    ldr x19, [sp], 48
+    ldp fp, lr, [sp], 16
     ret
-
-
 
 ; map in x0
 ; key in x1
@@ -164,12 +170,7 @@ _m_insert:
     str w4, [x0]
     cmp w3, w4, lsl 1
     bgt 0f
-
-    stp x0, x1, [sp, -32]!
-    str x2, [sp, 16]
-    bl _m_resize
-    ldr x2, [sp, 16]
-    ldp x0, x1, [sp], 32
+    bl _m_resize ; does not clobber x0, x1, or x2
 0:
     bl _m_insert_util
     ldp fp, lr, [sp], 16
@@ -365,19 +366,32 @@ _m_destroy:
     ret
 
 ; accepts string in x0
-; returns hash in x0
-_m_hash:
-    mov x1, 5381 ; magic number for djb hash
+; returns hash in w0
+_m_hash: ; clobbers x0, x1, x2
+    movz w1, 5381 ; magic number for djb hash
 0:
-    ldrsb w2, [x0], 1
+    ldrb w2, [x0], 1 ; not a signed byte
     cbz w2, 1f
-    sxtw x2, w2 ; sign extend word
-    add x1, x1, x1, lsl 5 ; hash += (hash << 5)
-    add x1, x1, x2 ; hash += *str
+    add w1, w1, w1, lsl 5 ; hash += (hash << 5)
+    add w1, w1, w2 ; hash += *str
     b 0b
 1:
-    mov x0, x1
+    mov w0, w1
+    ret
+
+; string 1 x0
+; string 2 x1
+; result in x0
+; would like to look into 64 bit comparisons here...
+_m_strcmp: ; clobbers x0, x1, x2, x3
+    ldrb w2, [x0], 1
+    ldrb w3, [x1], 1
+    cmp w2, w3
+    bne 1f
+    cbnz w2, _m_strcmp
+1:  
+    subs w0, w3, w2
     ret
 
 .section __text,__cstring,cstring_literals
-debug_message: .asciz "s1, s2: %s, %s\n"
+debug_message: .asciz "insert_util called with map: %p, key: %s, and value: %lu\n"

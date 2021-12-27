@@ -22,14 +22,14 @@ _if_statement:
 
     mov x19, x0 ; tokens
     mov x20, x1 ; save cursor pointer
-    add x9, x9, 1 ; skip if token
-    str x9, [x20] ; update cursor pointer
+    add x21, x9, 1 ; skip if token
+    str x21, [x20] ; update cursor pointer
 
     ; call expression eval on predicate
     bl _expression_eval
     cbz x0, 10f
 ; perform if statement
-    ldr x21, [x20] ; load cursor
+    ldr x21, [x20] ; load cursor after expression_eval changed it
     ldr x8, [x19, x21, lsl 3] ; load token
     ldr x8, [x8] ; load type
     cmp x8, TS_OPEN_CURL_BRACE
@@ -72,14 +72,11 @@ _if_statement:
     cmp x8, TS_OPEN_CURL_BRACE
     bne _if_statement_error1
 
-    str x21, [x20] ; update cursor
-
     mov x0, x19
-    mov x1, x20
+    mov x1, x21
     bl _skip_to_end
 
-    ldr x21, [x20] ; load cursor
-    add x21, x21, 1 ; increment cursor past last close
+    add x21, x0, 1 ; increment cursor past last close
 
     b 20f
 
@@ -92,11 +89,10 @@ _if_statement:
     bne _if_statement_error1
 
     mov x0, x19
-    mov x1, x20
+    mov x1, x21
     bl _skip_to_end
 
-    ldr x21, [x20]
-    add x21, x21, 1 ; increment past close bracket
+    add x21, x0, 1 ; increment past close bracket
 
     ; if there's an else keyword, do that, otherwise return control
     ldr x8, [x19, x21, lsl 3]

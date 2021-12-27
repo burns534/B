@@ -3,15 +3,16 @@
 .include "types.s"
 .globl _variable_definition
 .globl _function_definition
-; tokens in x0 
-; cursor pointer in x1
-_variable_definition:
-    ; load current token and check for var, abort early if not
-    ldr x8, [x1]
-    ldr x8, [x0, x8, lsl 3]
-    ldr x8, [x8]
 
-    cmp x8, TS_VAR
+; tokens x0
+; cursor reference x1
+_variable_definition:
+    ; load current token and check for identifier, abort early if not
+    ldr x9, [x1] ; load cursor
+    ldr x10, [x0, x9, lsl 3] ; load token
+    ldr x8, [x10] ; load type
+
+    cmp x8, TS_IDENTIFIER
     beq 0f
     mov x0, xzr ; return false
     ret
@@ -22,17 +23,9 @@ _variable_definition:
     stp x19, x20, [sp, 16]
     
     mov x19, x0
+    add x20, x9, 1 ; cursor x20, advance past identifier
+    mov x21, x10 ; save identifier token for later
     mov x22, x1 ; cursor pointer
-    ldr x20, [x22] ; load cursor
-    add x20, x20, 1 ; advance cursor to next token
-
-    ; check identifier
-    ldr x21, [x19, x20, lsl 3] ; save in x21 for later
-    ldr x8, [x21]
-    cmp x8, TS_IDENTIFIER
-    bne _variable_definition_runtime_error1
-
-    add x20, x20, 1 ; advance to next token
     
     ; check for assignment operator
     ldr x8, [x19, x20, lsl 3]
@@ -54,7 +47,7 @@ _variable_definition:
     ldr x8, [x19, x20, lsl 3]
     ldr x8, [x8] ; type
     cmp x8, TS_CLOSE_SQ_BRACE
-    bne _variable_definition_runtime_error4
+    bne _variable_definition_runtime_error1
 
     add x20, x20, 1 ; advance past close bracket
 
@@ -127,10 +120,9 @@ _variable_definition:
     ret
 
 _variable_definition_runtime_error1:
-    ; throw runtime error
-    adrp x0, variable_def_error1@page
-    add x0, x0, variable_def_error1@pageoff
-    str x8, [sp, -16]!
+    adrp x0, variable_def_error4@page
+    add x0, x0, variable_def_error4@pageoff
+    str x8, [sp]
     bl _printf
 
     mov w0, 1
@@ -156,14 +148,6 @@ _variable_definition_runtime_error3:
     mov w0, 1
     bl _exit
 
-_variable_definition_runtime_error4:
-    adrp x0, variable_def_error4@page
-    add x0, x0, variable_def_error4@pageoff
-    str x8, [sp]
-    bl _printf
-
-    mov w0, 1
-    bl _exit
 ; tokens in x0
 ; cursor pointer in x1
 ; returns 1 if found

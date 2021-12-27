@@ -7,7 +7,6 @@
 ; accept pointer to cursor in x1
 ; return 1 in x0 if found
 _while_statement:
-
     ; first check for while token
     ldr x9, [x1] ; load cursor
     ldr x8, [x0, x9, lsl 3]
@@ -32,7 +31,6 @@ _while_statement:
     bl _expression_eval
     cbz x0, 10f ; if zero, don't even start
 
-1:
     ldr x21, [x20] ; load cursor after expression eval
     ldr x8, [x19, x21, lsl 3] ; load token
     ldr x8, [x8] ; load type
@@ -41,17 +39,17 @@ _while_statement:
 
 ; loop to find the end of the while loop
     mov x0, x19
-    mov x1, x20 
+    mov x1, x21 ; cursor itself
     bl _skip_to_end
 
-    ; now x21 is pointing to the last close brace
-    add x23, x21, 1 ; increment past it and save this as the exit point
+    ; now x0 is pointing to the last close brace
+    add x23, x0, 1 ; increment past it and save this as the exit point
 
     bl _enter_scope ; enter new temporary scope for the loop
 
 6:
-    ; cursor pointer points to open bracket after predicate evaluation
-    ldr x21, [x20]
+    ; cursor points to open bracket after predicate evaluation
+    ldr x21, [x20] ; load cursor
     add x21, x21, 1
     str x21, [x20] ; skip this before calling evaluate
 

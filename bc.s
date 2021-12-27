@@ -24,7 +24,7 @@ _runtime_error:
 ; accept token type (long) in x0
 ; return precedence in x0
 _precedence:
-    sub x1, x0, TS_ASSIGN 
+    sub x1, x0, TS_ASSIGN
     adrp x0, precedence_table@page
     add x0, x0, precedence_table@pageoff
     ldr x0, [x0, x1, lsl 3]
@@ -67,15 +67,11 @@ _unary_eval:
 _primary_eval:
     stp fp, lr, [sp, -16]!
 
-    ;str x0, [sp, -16]!
-    ;bl _print_activation_stack
-    ;ldr x0, [sp], 16
-
     ldr x1, [x0] ; load token type
     cmp x1, TS_INTEGER
     bne 0f
     ldr x0, [x0, 8] ; load token value string
-    bl _atoi
+    bl _atol ; convert token string to long
     b 10f
 0:
     ; string or identifier cases, need symbol table for this
@@ -86,6 +82,7 @@ _primary_eval:
 1:
     cmp x1, TS_IDENTIFIER
     bne _primary_eval_runtime_error
+
     bl _get_entry
     ldr x0, [x0, 8] ; load value for identifier from variable entry
 10:
@@ -99,89 +96,6 @@ _primary_eval_runtime_error:
     bl _printf
 
     mov x0, 1
-    b _exit
-
-; op2 in x0
-; op1 in x1
-; operation token in x2
-_binary_eval:
-    ldr x3, [x2] ; load operation type
-    cmp x3, TS_ADD
-    bne 0f
-    add x0, x1, x0
-    ret
-0:
-    cmp x3, TS_SUB
-    bne 1f
-    subs x0, x1, x0
-    ret
-1:
-    cmp x3, TS_MUL
-    bne 2f
-    mul x0, x1, x0
-    ret
-2:
-    cmp x3, TS_DIV
-    bne 3f
-    udiv x0, x1, x0
-    ret
-3:
-    cmp x3, TS_MOD
-    bne 4f
-    udiv x2, x1, x0
-    msub x0, x0, x2, x1
-    ret
-4:
-    cmp x3, TS_EQ
-    bne 5f
-    cmp x0, x1
-    cset x0, eq
-    ret
-5:
-    cmp x3, TS_LT
-    bne 6f
-    cmp x1, x0
-    cset x0, lt
-    ret
-6:
-    cmp x3, TS_GT
-    bne 7f
-    cmp x1, x0
-    cset x0, gt
-    ret
-7: 
-    cmp x3, TS_LE
-    bne 8f
-    cmp x1, x0
-    cset x0, le
-    ret
-8: 
-    cmp x3, TS_GE
-    bne 9f
-    cmp x1, x0
-    cset x0, ge
-    ret
-9:
-    cmp x3, TS_AND
-    bne 10f
-    and x0, x1, x0 ; bitwise and
-    cmp x0, 0
-    cset x0, gt
-    ret
-10:
-    cmp x3, TS_OR
-    bne 11f
-    orr x0, x1, x0 ; bitwise or
-    cmp x0, 0
-    cset x0, gt
-    ret
-11:
-    str x3, [sp]
-    stp x1, x0, [sp, 8]
-    adrp x0, binary_error@page
-    add x0, x0, binary_error@pageoff
-    bl _printf
-    mov w0, 1
     b _exit
 
 ; opstack x0
@@ -251,7 +165,7 @@ _expression_eval:
     ldp x8, x12, [sp], 16
 
 ; check if operator
-    cmp x8, TS_AND
+    cmp x8, TS_ASSIGN
     blt 1f
     cmp x8, TS_MOD
     bgt 1f
@@ -267,7 +181,6 @@ _expression_eval:
     mov x0, x21
     bl _print_stack
     ldp x0, x12, [sp], 16
-
 
     cbz x0, 11f ; if empty, break
     ldr x0, [x0] ; type
@@ -371,6 +284,34 @@ _expression_eval:
 
     b 0b
 5:
+
+    cmp x8, TS_OPEN_SQ_BRACE
+    bne 6f
+
+    ; retrieve entry for identifier
+    ldr x8, [x19, x20, lsl 3]
+    ldr x0, [x8, 8] ; identifier
+    bl _get_entry
+    ldr x23, [x0, 8] ; get entry value and save in x23
+
+    add x20, x20, 2 ; skip identifier and open brace
+    str x20, [x25]
+
+    mov x0, x19
+    mov x1, x25
+    bl _expression_eval ; evaluate index
+    ; check for close sq bracket
+    ldr x20, [x25]
+    ldr x8, [x19, x20, lsl 3]
+    ldr x8, [x8]
+    cmp x8, TS_CLOSE_SQ_BRACE
+    bne _expression_eval_runtime_error3
+
+    ldr x0, [x23, x0, lsl 3] ; load value stored at entry address with index offset
+
+    b 12f ; branch to push to the outstack
+
+6:
     ; otherwise, push the primary eval to outstack
     ldr x0, [x19, x20, lsl 3] ; load current token
     bl _primary_eval
@@ -380,7 +321,7 @@ _expression_eval:
     add x0, x0, debug_message@pageoff
     bl _printf
     ldr x0, [sp], 16
-
+12:
     mov x1, x0
     mov x0, x22 ; outstack
     bl _s_push
@@ -460,9 +401,18 @@ _expression_eval_runtime_error1:
     bl _runtime_error
 
 _expression_eval_runtime_error2:
-    adrp x0, _expression_eval_runtime_error2@page
-    add x0, x0, _expression_eval_runtime_error2@pageoff
+    adrp x0, exp_eval_error2@page
+    add x0, x0, exp_eval_error2@pageoff
     bl _runtime_error
+
+_expression_eval_runtime_error3:
+    str x8, [sp]
+    adrp x0, exp_eval_error3@page
+    add x0, x0, exp_eval_error3@pageoff
+    bl _printf
+
+    mov x0, xzr
+    bl _exit
 
 .globl _evaluate
 ; tokens in x0
@@ -473,6 +423,10 @@ _evaluate:
     str x21, [sp, 16]
     mov x19, x0 ; save tokens
     mov x20, x1 ; save cursor pointer
+
+    adrp x0, debug_message9@page
+    add x0, x0, debug_message9@pageoff
+    bl _puts
 
     bl _print_activation_stack
 0:  
@@ -504,8 +458,8 @@ _evaluate:
     ldr x8, [x8] ; load type
     cmp x8, TS_OPEN_PAREN
     bne 1f
+
     ; function call
-    str x9, [x20] ; update cursor to open paren
     mov x0, x19
     mov x1, x20
     bl _function_call ; shouldve terminated on semicolon
@@ -592,16 +546,16 @@ _eval_error3:
 ; call with cursor pointing to the first open bracket
 ; tokens in x0
 ; cursor in x1
+; returns cursor x0
 _skip_to_end:
-    ldr x10, [x1] ; load cursor
     mov x9, 1 ; nest depth
 0:
-    add x10, x10, 1
-    ldr x8, [x0, x10, lsl 3]
+    add x1, x1, 1
+    ldr x8, [x0, x1, lsl 3]
     ldr x8, [x8]
     cmp x8, TS_OPEN_CURL_BRACE
     bne 1f
-    add x9, x9, x1 ; increase nest depth
+    add x9, x9, 1 ; increase nest depth
     b 0b
 1:
     cmp x8, TS_CLOSE_CURL_BRACE
@@ -609,7 +563,7 @@ _skip_to_end:
     subs x9, x9, 1 ; decrease nest depth
     cbnz x9, 0b
 
-    str x10, [x1] ; write cursor
+    mov x0, x1 ; return cursor pointing to last close bracket
     ret
 
 ; accept tokens in x0
@@ -623,6 +577,10 @@ _function_call:
     mov x19, x0 ; tokens in x19
     mov x20, x1 ; cursor pointer x20
     ldr x21, [x20] ; load cursor
+    
+    bl _system_call ; this could be implemented in a better way but it's fine for now
+    cbnz x1, 10f ; return if system call was performed
+    ; return result will be in x0 if there was one
 
     ;adrp x0, debug_message7@page
     ;add x0, x0, debug_message7@pageoff
@@ -724,7 +682,7 @@ _function_call:
     add x0, x0, debug_message3@pageoff
     bl _printf
     ldr x0, [sp], 16
-
+10:
     ldr x23, [sp, 16]
     ldp x19, x20, [sp, 32]
     ldp x21, x22, [sp, 48]
@@ -757,15 +715,14 @@ _function_identifier_invalid_error:
 
 .data
 .p2align 3
-precedence_table: .quad 0, 1, 1, 2, 2, 3, 3, 3
-
+precedence_table: .quad 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 5, 5, 6, 6, 6, 6, 7, 7, 8, 8, 9, 9, 9
 
 .section __text,__cstring,cstring_literals
 unary_error: .asciz "error: invalid unary operator"
-binary_error: .asciz "error: invalid binary operator %lu with operands %lu and %lu\n"
-exp_eval_error: .asciz "expression eval failed on token %lu\n"
-exp_eval_error1: .asciz "outstack top != 0"
-exp_eval_error2: .asciz "top of opstack was not open paren"
+exp_eval_error: .asciz "error: expression_eval: failed on token %lu\n"
+exp_eval_error1: .asciz "error: expression_eval: outstack top != 0"
+exp_eval_error2: .asciz "error: expression_eval: top of opstack was not open paren"
+exp_eval_error3: .asciz "error: expression_eval: expected ] and found %lu instead\n"
 primary_eval_error_message: .asciz "primary expression encountered invalid token %lu\n"
 eval_error1: .asciz "error: evaluate: no valid statement found"
 eval_error2: .asciz "error: evaluate: expected identifier instead found %lu\n"
@@ -782,3 +739,4 @@ debug_message5: .asciz "about to check for function call with token %s\n"
 debug_message6: .asciz "function call with token %s\n"
 debug_message7: .asciz "cursor: %lu\n"
 debug_message8: .asciz "eval loop with token: %lu, cursor: %lu\n"
+debug_message9: .asciz "evaluate called!"

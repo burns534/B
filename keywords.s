@@ -1,4 +1,4 @@
-.equ keyword_bytes, 8 * 12
+.equ keyword_bytes, 8 * 11
 
 .data
 .p2align 3
@@ -15,7 +15,6 @@ keywords:
 
     .quad return
     .quad struct
-    .quad var
     .quad while
 
 break: .asciz "break"
@@ -30,5 +29,4 @@ new: .asciz "new"
 
 return: .asciz "return"
 struct: .asciz "struct"
-var: .asciz "var"
 while: .asciz "while"

@@ -58,16 +58,28 @@ _lex:
     mov w24, TS_ADD
     beq 1f
     cmp w20, '-'
-    mov w24, TS_SUB
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '>'
+    mov w24, TS_PTR
     beq 1f
+
+    ; otherwise, unget the character and set adr operator
+    mov x1, x19
+    bl _ungetc
+    mov w24, TS_SUB
+    b 1f
+3:
     cmp w20, '/'
     mov w24, TS_DIV
     beq 1f
     cmp w20, '*'
     mov w24, TS_MUL
     beq 1f
-    cmp w20, '@'
-    mov w24, TS_PTR ; didn't want to distinguish between * unary and * binary
+    cmp w20, '^'
+    mov w24, TS_XOR
     beq 1f
     cmp w20, '%'
     mov w24, TS_MOD
@@ -95,6 +107,9 @@ _lex:
     cmp w0, '='
     mov w24, TS_LE
     beq 1f
+    cmp w0, '<'
+    mov w24, TS_LEFT
+    beq 1f
 
     ; otherwise, unget the character and set adr operator
     mov x1, x19
@@ -110,6 +125,9 @@ _lex:
     cmp w0, '='
     mov w24, TS_GE
     beq 1f
+    cmp w0, '>'
+    mov w24, TS_RIGHT
+    beq 1f
 
     ; otherwise, unget the character and set adr operator
     mov x1, x19
@@ -118,35 +136,49 @@ _lex:
     b 1f
 3:
     cmp w20, '!'
-    mov w24, TS_NOT
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_NE
     beq 1f
+
+    ; otherwise, unget the character and set adr operator
+    mov x1, x19
+    bl _ungetc
+    mov w24, TS_NOT
+    b 1f
+3:
     cmp w20, '&'
     bne 3f
 
     mov x0, x19
     bl _fgetc
     cmp w0, '&'
-    mov w24, TS_AND
+    mov w24, TS_LOGICAL_AND
     beq 1f
 
     ; otherwise, unget the character and set adr operator
     mov x1, x19
     bl _ungetc
-    mov w24, TS_ADR
+    mov w24, TS_AND
     b 1f
 3:
-    cmp w20, '|'
+    cmp w20, '&'
     bne 3f
 
     mov x0, x19
     bl _fgetc
-    cmp w0, '|'
-    mov w24, TS_OR
+    cmp w0, '&'
+    mov w24, TS_LOGICAL_OR
     beq 1f
 
-    ; otherwise, unget the character and fall through
+    ; otherwise, unget the character and set adr operator
     mov x1, x19
     bl _ungetc
+    mov w24, TS_OR
+    b 1f
 3:
     cmp w20, '('
     mov w24, TS_OPEN_PAREN
@@ -292,20 +324,55 @@ _identifier_token:
 
 _string_token:
     cmp w20, '"' ; check if current char is double quote
-    bne 3f
-    stp fp, lr, [sp, -16]!
+    beq 0f
+    ret
 0:
+    stp fp, lr, [sp, -16]!
+1:
     ; get next character
     mov x0, x19
     bl _fgetc
-    mov w20, w0 ; set current character
-    cmp w20, '"'
-    beq 1f
+    cmp w0, '"'
+    beq 3f
+    cmp w0, '\\' ; escape character
+    bne 2f
+; handle escape char
+    mov x0, x19
+    bl _fgetc
+; could probably use a table or something here
+    cmp w0, 'n'
+    mov w0, 10 ; lf
+    beq 2f
+    cmp w0, 'r'
+    mov w0, 13 ; cr
+    bne 2f
+    cmp w0, 't'
+    mov w0, 9 ; tab
+    bne 2f
+    cmp w0, 'f'
+    mov w0, 12 ; form feed
+    bne 2f
+    cmp w0, '0'
+    mov w0, 0 ; null
+    bne 2f
+    cmp w0, '''
+    bne 2f
+    cmp w0, '"'
+    bne 2f
+    cmp w0, '\\'
+    bne 2f
+    cmp w0, 'b'
+    mov w0, 8 ; backspace
+    bne 2f
+    cmp w0, 'v'
+    mov w0, 11 ; vertical tab
+    bne 2f
+2:
     ; store in buffer and increment buffer index
-    strb w20, [x21, x22]
+    strb w0, [x21, x22]
     add x22, x22, 1
-    b 0b
-1:
+    b 1b
+3:
     ; skip past the quote
     mov x0, x19
     bl _fgetc
@@ -313,9 +380,7 @@ _string_token:
     ; generate token
     mov x0, TS_STRING
     bl _create_token
-2:
     ldp fp, lr, [sp], 16
-3:
     ret
 
 ; skips whitespace

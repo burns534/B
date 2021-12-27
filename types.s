@@ -12,50 +12,71 @@
 
 .equ TS_RETURN, 8
 .equ TS_STRUCT, 9
-.equ TS_VAR, 10
-.equ TS_WHILE, 11
+.equ TS_WHILE, 10
 
-.equ TS_INTEGER, 20
-.equ TS_IDENTIFIER, 21
-.equ TS_STRING, 22
+.equ TS_INTEGER, 64
+.equ TS_IDENTIFIER, 65
+.equ TS_STRING, 66
 
-.equ TS_EOF, 23
-.equ TS_CLOSE, 24
-.equ TS_INVALID, 25
+.equ TS_EOF, 67
+.equ TS_CLOSE, 68
+.equ TS_INVALID, 69
 
-.equ TS_ASSIGN, 50
+.equ TS_ASSIGN, 128
+.equ TS_AND_A, 129
+.equ TS_OR_A, 130
+.equ TS_XOR_A, 131
+.equ TS_ADD_A, 132
+.equ TS_SUB_A, 133
+.equ TS_MUL_A, 134
+.equ TS_DIV_A, 135
+.equ TS_MOD_A, 136
+.equ TS_RIGHT_A, 137
+.equ TS_LEFT_A, 138
 
-.equ TS_AND, 51
-.equ TS_OR, 52
+.equ TS_LOGICAL_OR, 139
 
-.equ TS_EQ, 53
-.equ TS_LT, 54
-.equ TS_GT, 55
-.equ TS_LE, 56
-.equ TS_GE, 57
+.equ TS_LOGICAL_AND, 140
 
-.equ TS_ADD, 58
-.equ TS_SUB, 59
+.equ TS_OR, 141
 
-.equ TS_DIV, 60
-.equ TS_MUL, 61
-.equ TS_MOD, 62
+.equ TS_XOR, 142
 
-.equ TS_NOT, 63
-.equ TS_ADR, 64
-.equ TS_PTR, 65
+.equ TS_AND, 143
 
-.equ TS_OPEN_PAREN, 100
-.equ TS_CLOSE_PAREN, 101
-.equ TS_OPEN_SQ_BRACE, 102
-.equ TS_CLOSE_SQ_BRACE, 103
-.equ TS_OPEN_CURL_BRACE, 104
-.equ TS_CLOSE_CURL_BRACE, 105
-.equ TS_DOT, 106
-.equ TS_SEMICOLON, 107
-.equ TS_COLON, 108
-.equ TS_COMMA, 109
+.equ TS_EQ, 144
+.equ TS_NE, 145
+
+.equ TS_LT, 146
+.equ TS_GT, 147
+.equ TS_LE, 148
+.equ TS_GE, 149
+
+.equ TS_RIGHT, 150
+.equ TS_LEFT, 151
+
+.equ TS_ADD, 152
+.equ TS_SUB, 153
+
+.equ TS_MUL, 154
+.equ TS_DIV, 155
+.equ TS_MOD, 156
+
+.equ TS_NOT, 157
+.equ TS_ADR, 158
+.equ TS_PTR, 159
+
+.equ TS_OPEN_PAREN, 256
+.equ TS_CLOSE_PAREN, 257
+.equ TS_OPEN_SQ_BRACE, 258
+.equ TS_CLOSE_SQ_BRACE, 259
+.equ TS_OPEN_CURL_BRACE, 260
+.equ TS_CLOSE_CURL_BRACE, 261
+.equ TS_DOT, 262
+.equ TS_SEMICOLON, 263
+.equ TS_COLON, 264
+.equ TS_COMMA, 265
 
 
-.equ VARIABLE_TYPE, 64
-.equ FUNCTION_TYPE, 65
+.equ VARIABLE_TYPE, 512
+.equ FUNCTION_TYPE, 513

@@ -58,13 +58,13 @@ _get_entry:
 
     mov x19, x0 ; identifier x19
 
-    bl _print_activation_stack
-
     adrp x0, debug_message1@page
     add x0, x0, debug_message1@pageoff
     str x19, [sp, -16]!
     bl _printf
     add sp, sp, 16
+
+    bl _print_activation_stack
 
     adrp x0, symbol_table_address@page
     add x0, x0, symbol_table_address@pageoff
