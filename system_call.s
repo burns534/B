@@ -168,43 +168,329 @@ b_puts:
 .data
 .p2align 3
 function_names:
-    .quad fprintf
-    .quad fputs
-    .quad printf
-    .quad puts
-
-    .quad fgetc
-    .quad ungetc
-    .quad fread
-    .quad fopen
+; stdio from https://www.cplusplus.com/reference/cstdio/ 
+    .quad remove
+    .quad rename
+    .quad tmpfile 
+    .quad tmpnam
 
     .quad fclose
+    .quad fflush
+    .quad fopen
+    .quad freopen
+    .quad setbuf
+    .quad setvbuf
+
+    .quad fprintf
+    .quad fscanf
+    .quad printf
+    .quad scanf
+    .quad sprintf
+    .quad sscanf
+    .quad vfprintf
+    .quad vprintf
+    .quad vsprintf
+
+    .quad fgetc
+    .quad fgets
+    .quad fputc
+    .quad fputs
+    .quad getc
+    .quad getchar
+    .quad gets
+    .quad putc
+    .quad putchar
+    .quad puts
+    .quad ungetc
+
+    .quad fread
     .quad fwrite
+
+    .quad fgetpos
     .quad fseek
+    .quad fsetpos
     .quad ftell
+    .quad rewind
+
+    .quad clearerr
+    .quad feof
+    .quad ferror
+    .quad perror
+; ctype.h from https://www.cplusplus.com/reference/cctype/
+    .quad isalnum
+    .quad isalpha
+    .quad iscntrl
+    .quad isdigit
+    .quad isgraph
+    .quad islower
+    .quad isprint
+    .quad ispunct
+    .quad isspace
+    .quad isupper
+    .quad isxdigit
+
+    .quad tolower
+    .quad toupper
+
+; cmath https://www.cplusplus.com/reference/cmath/
+    .quad cos
+    .quad sin
+    .quad tan
+    .quad acos
+    .quad asin
+    .quad atan
+    .quad atan2
+
+    .quad cosh
+    .quad sinh
+    .quad tanh
+
+    .quad exp
+    .quad frexp
+    .quad ldexp
+    .quad log
+    .quad log10
+    .quad modf
+
+    .quad pow
+    .quad sqrt
+
+    .quad ceil
+    .quad floor
+    .quad fmod
+
+    .quad fabs
+    .quad abs
+; cstring https://www.cplusplus.com/reference/cstring/
+    .quad memcpy
+    .quad memmove
+    .quad strcpy
+    .quad strncpy
+
+    .quad strcat
+    .quad strncat
+
+    .quad memcmp
+    .quad strcmp
+    .quad strcoll
+    .quad strncmp
+    .quad strxfrm
+
+    .quad memchr
+    .quad strchr
+    .quad strcspn
+    .quad strpbrk
+    .quad strrchr
+    .quad strspn
+    .quad strstr
+    .quad strtok
+
+    .quad memset
+    .quad strerror
+    .quad strlen
+
+; cstdlib
+
+    .quad atof
+    .quad atoi
+    .quad atol
+    .quad strtod
+    .quad strtol
+    .quad strtoul
+
+    .quad rand
+    .quad srand
+
+    .quad bsearch
+    .quad qsort
+
+    .quad abs
 
 jump_table:
-    .quad b_fprintf
-    .quad b_fputs
-    .quad b_printf
-    .quad b_puts
+    .quad b_remove
+    .quad b_rename
+    .quad b_tmpfile
+    .quad b_tmpnam
 
+    .quad b_fclose
+    .quad b_fflush
+    .quad b_fopen
+    .quad b_freopen
+    .quad b_setbuf
+    .quad b_setvbuf
+
+    .quad b_fprintf
+    .quad b_fscanf
+    .quad b_printf
+    .quad b_scanf
+    .quad b_sprintf
+    .quad b_sscanf
+    .quad b_fprintf
+    .quad b_printf
+    .quad b_vsprintf
+
+    .quad b_fgetc
+    .quad b_fgets
+    .quad b_fputc
+    .quad b_fputs
+    .quad b_getc
+    .quad b_getchar
+    .quad b_gets
+    .quad b_putc
+    .quad b_putchar
+    .quad b_puts
+    .quad b_ungetc
+
+    .quad b_fread
+    .quad b_fwrite
+
+    .quad b_fgetpos
+    .quad b_fseek
+    .quad b_fsetpos
+    .quad b_ftell
+    .quad b_rewind
+
+    .quad b_clearerr
+    .quad b_feof
+    .quad b_ferror
+    .quad b_perror
+; stdio
+    .quad b_isalnum
+    .quad b_isalpha
+    .quad b_iscntrl
+    .quad b_isdigit
+    .quad b_isgraph
+    .quad b_islower
+    .quad b_isprint
+    .quad b_ispunct
+    .quad b_isspace
+    .quad b_isupper
+    .quad b_isxdigit
+
+    .quad b_tolower
+    .quad b_toupper
+; cmath
+    .quad b_cos
+    .quad b_sin
+    .quad b_tan
+    .quad b_acos
+    .quad b_asin
+    .quad b_atan
+    .quad b_atan2
+
+    .quad b_cosh
+    .quad b_sinh
+    .quad b_tanh
+
+    .quad b_exp
+    .quad b_frexp
+    .quad b_ldexp
+    .quad b_log
+    .quad b_log10
+    .quad b_modf
+
+    .quad b_pow
+    .quad b_sqrt
+
+    .quad b_ceil
+    .quad b_floor
+    .quad b_fmod
+
+    .quad b_fabs
+    .quad b_abs
+; cstring
+    .quad b_memcpy
+    .quad b_memmove
+    .quad b_strcpy
+    .quad b_strncpy
+    
+    .quad b_strcat
+    .quad b_strncat
+
+    .quad b_memcmp
+    .quad b_strcmp
+    .quad b_strcoll
+    .quad b_strncmp
+    .quad b_strxfrm
+
+    .quad b_memchr
+    .quad b_strchr
+    .quad b_strcspn
+    .quad b_strpbrk
+    .quad b_strrchr
+    .quad b_strspn
+    .quad b_strstr
+    .quad b_strtok
+
+    .quad b_memset
+    .quad b_strerror
+    .quad b_strlen
+; cstdlib
+    .quad b_atof
+    .quad b_atoi
+    .quad b_atol
+    .quad b_strtod
+    .quad b_strtol
+    .quad b_strtoul
+    
+    .quad b_rand
+    .quad b_srand
+    
+    .quad b_bsearch
+    .quad b_qsort
+
+    .quad b_abs
 
 .section __text,__cstring,cstring_literals
-fprintf: .asciz "fprintf"
-fputs: .asciz "fputs"
-printf: .asciz "printf"
-puts: .asciz "puts"
-
-fgetc: .asciz "fgetc"
-ungetc: .asciz "ungetc"
-fread: .asciz "fread"
-fopen: .asciz "fopen"
+remove: .asciz "remove"
+rename: .asciz "rename"
+tmpfile: .asciz "tmpfile"
+tmpnam: .asciz "tmpnam"
 
 fclose: .asciz "fclose"
+fflush: .asciz "fflush"
+fopen: .asciz "fopen"
+freopen: .asciz "freopen"
+setbuf: .asciz "setbuf"
+setvbuf: .asciz "setvbuf"
+
+fprintf: .asciz "fprintf"
+fscanf: .asciz "fscanf"
+printf: .asciz "printf"
+scanf: .asciz "scanf"
+sprintf: .asciz "sprintf"
+sscanf: .asciz "sscanf"
+vfprintf: .asciz "vfprintf"
+vprintf: .asciz "vprintf"
+vsprintf: .asciz "vsprintf"
+
+fgetc: .asciz "fgetc"
+fgets: .asciz "fgets"
+fputc: .asciz "fputc"
+fputs: .asciz "fputs"
+getc: .asciz "getc"
+getchar: .asciz "getchar"
+gets: .asciz "gets"
+putc: .asciz "putc"
+putchar: .asciz "putchar"
+puts: .asicz "puts"
+ungetc: .asciz "ungetc"
+
+fread: .asciz "fread"
 fwrite: .asciz "fwrite"
+
+fgetpos: .asciz "fgetpos"
 fseek: .asciz "fseek"
+fsetpos: .asciz "fsetpos"
 ftell: .asciz "ftell"
+rewind: .asciz "rewind"
+
+clearerr: .asciz "clearerr"
+feof: .asciz "feof"
+ferror: .asciz "ferror"
+perror: .asciz "perror"
+
+
 
 message: .asciz "printf called!!"
 message1: .asciz "system call: comparing identifier %s and table entry %s\n"

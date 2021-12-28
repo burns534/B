@@ -45,7 +45,7 @@ _if_statement:
     mov x1, x20
     bl _evaluate ; evaluate the code block
 
-    bl _print_symbol_table
+    bl _print_variable_table
 
 ; check for return expr
     ldr x21, [x20]
@@ -116,7 +116,7 @@ _if_statement:
     mov x1, x20
     bl _evaluate
 
-    bl _print_symbol_table
+    bl _print_variable_table
 
 ; check for return expr
     ldr x21, [x20]

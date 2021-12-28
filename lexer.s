@@ -55,8 +55,19 @@ _lex:
 
     ; check for operators
     cmp w20, '+'
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_ADD_A
+    beq 4f
+
+    mov x1, x19
+    bl _ungetc
     mov w24, TS_ADD
-    beq 1f
+    b 1f
+3:
     cmp w20, '-'
     bne 3f
 
@@ -64,26 +75,75 @@ _lex:
     bl _fgetc
     cmp w0, '>'
     mov w24, TS_PTR
-    beq 1f
+    beq 4f
+    cmp w0, '='
+    mov w24, TS_SUB_A
+    beq 4f
 
-    ; otherwise, unget the character and set adr operator
     mov x1, x19
     bl _ungetc
     mov w24, TS_SUB
     b 1f
 3:
     cmp w20, '/'
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_DIV_A
+    beq 4f
+
+    mov x1, x19
+    bl _ungetc
     mov w24, TS_DIV
-    beq 1f
+    b 1f
+3:
     cmp w20, '*'
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_MUL_A
+    beq 4f
+
+    ; otherwise, unget the character and set adr operator
+    mov x1, x19
+    bl _ungetc
     mov w24, TS_MUL
-    beq 1f
+    b 1f
+3:
     cmp w20, '^'
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_XOR_A
+    beq 4f
+
+    ; otherwise, unget the character and set adr operator
+    mov x1, x19
+    bl _ungetc
     mov w24, TS_XOR
-    beq 1f
+    b 1f
+3:
     cmp w20, '%'
+    bne 3f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_MOD_A
+    beq 4f
+
+    ; otherwise, unget the character and set adr operator
+    mov x1, x19
+    bl _ungetc
     mov w24, TS_MOD
-    beq 1f
+    b 1f
+3:
     cmp w20, '='
     bne 3f
 
@@ -91,7 +151,7 @@ _lex:
     bl _fgetc
     cmp w0, '='
     mov w24, TS_EQ
-    beq 1f
+    beq 4f
 
     ; otherwise, unget the character and set adr operator
     mov x1, x19
@@ -106,11 +166,25 @@ _lex:
     bl _fgetc
     cmp w0, '='
     mov w24, TS_LE
-    beq 1f
+    beq 4f
     cmp w0, '<'
-    mov w24, TS_LEFT
-    beq 1f
+    bne 2f
 
+    adrp x0, debug_message10@page
+    add x0, x0, debug_message10@pageoff
+    bl _puts
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_LEFT_A
+    beq 4f
+
+    mov x1, x19
+    bl _ungetc
+    mov w24, TS_LEFT
+    b 1f
+2:
     ; otherwise, unget the character and set adr operator
     mov x1, x19
     bl _ungetc
@@ -124,11 +198,21 @@ _lex:
     bl _fgetc
     cmp w0, '='
     mov w24, TS_GE
-    beq 1f
+    beq 4f
     cmp w0, '>'
+    bne 2f
+
+    mov x0, x19
+    bl _fgetc
+    cmp w0, '='
+    mov w24, TS_RIGHT_A
+    beq 4f
+
+    mov x1, x19
+    bl _ungetc
     mov w24, TS_RIGHT
     beq 1f
-
+2:
     ; otherwise, unget the character and set adr operator
     mov x1, x19
     bl _ungetc
@@ -142,7 +226,7 @@ _lex:
     bl _fgetc
     cmp w0, '='
     mov w24, TS_NE
-    beq 1f
+    beq 4f
 
     ; otherwise, unget the character and set adr operator
     mov x1, x19
@@ -157,7 +241,10 @@ _lex:
     bl _fgetc
     cmp w0, '&'
     mov w24, TS_LOGICAL_AND
-    beq 1f
+    beq 4f
+    cmp w0, '='
+    mov w24, TS_AND_A
+    beq 4f
 
     ; otherwise, unget the character and set adr operator
     mov x1, x19
@@ -165,14 +252,18 @@ _lex:
     mov w24, TS_AND
     b 1f
 3:
-    cmp w20, '&'
+    cmp w20, '|'
     bne 3f
 
     mov x0, x19
     bl _fgetc
-    cmp w0, '&'
+    cmp w0, '|'
     mov w24, TS_LOGICAL_OR
-    beq 1f
+    beq 4f
+    cmp w0, '='
+    mov w24, TS_OR_A
+    beq 4f
+    
 
     ; otherwise, unget the character and set adr operator
     mov x1, x19
@@ -213,6 +304,8 @@ _lex:
 
     bl _error
 
+4:
+    mov w20, w0
 1:
     ; store current character in buffer
     strb w20, [x21]
@@ -311,6 +404,8 @@ _identifier_token:
     bl _isdigit
     cbnz x0, 0b
 ; fallthrough
+    ; null terminate
+    str wzr, [x21, x22]
 
     bl _keyword
     cmp x0, -1
@@ -444,7 +539,7 @@ _keyword:
     ; load current keyword
     ldr x1, [x19, x20]
 
-    bl _strcmp
+    bl _m_strcmp
     cbz w0, 1f
 
     ; increment counter
@@ -506,3 +601,4 @@ token: .quad 0, 0 ; this was for when the parser was ll1
 
 .section __TEXT,__cstring,cstring_literals
 error_string: .asciz "error: invalid token %c\n"
+debug_message10: .asciz "encountered second < char"

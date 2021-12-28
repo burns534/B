@@ -4,11 +4,13 @@
 .globl _m_insert
 .globl _m_contains
 .globl _m_get
+.globl _m_get_lvalue
 .globl _m_remove
 .globl _m_destroy
 .globl _m_strcmp
 .globl _m_resize
 .globl _m_insert_util
+.globl _m_strcmp
 
 .equ MAP_SIZE, 4 + 4 + 8 + 8 ; bytes
 .equ DEFAULT_MAP_CAP, 16 ; quads
@@ -110,6 +112,7 @@ _m_resize:
 ; map in x0
 ; key in x1
 ; value in x2
+; returns lvalue in x0
 _m_insert_util: ; clobbers x0, x1, x2, x8, x9, x10, x11, x12, x13, x14
     stp fp, lr, [sp, -16]!
     mov x8, x0 ; map
@@ -150,12 +153,15 @@ _m_insert_util: ; clobbers x0, x1, x2, x8, x9, x10, x11, x12, x13, x14
     ldr x12, [x8, 16] ; values
     str x10, [x12, x14, lsl 3] ; write value
 
+    add x0, x12, x14, lsl 3 ; return lvalue
+
     ldp fp, lr, [sp], 16
     ret
 
 ; map in x0
 ; key in x1
 ; value in x2
+; returns lvalue in x0
 _m_insert:
     cmp x0, x1
     bne 0f
@@ -279,6 +285,65 @@ _m_get:
 ; map in x0
 ; key (char *) in x1
 ; result in x0
+_m_get_lvalue:
+; check key/map aren't null
+    cmp x0, x1
+    bne 0f
+    ret
+0:  
+    stp fp, lr, [sp, -16]!
+    mov x8, x0 ; map x8
+    mov x9, x1 ; key x9
+    ldr w10, [x8, 4] ; load capacity w10
+    sub w10, w10, 1 ; for optimized modulo
+    and x11, xzr, x11 ; clear x11
+
+    ; calculate hash
+    mov x0, x9 ; key
+    bl _m_hash ; clobbers x0, x1, x2
+
+    ; calculate index (hash % capacity)
+    and w11, w0, w10
+
+    stp x8, x9, [sp, -32]!
+    stp x10, x11, [sp, 16]
+    adrp x0, debug_message2@page
+    add x0, x0, debug_message2@pageoff
+    bl _printf
+    ldp x10, x11, [sp, 16]
+    ldp x8, x9, [sp], 32
+
+    ldr x12, [x8, 8] ; load keys into x12
+
+0:
+    ldr x13, [x12, x11, lsl 3] ; load key at index
+    cmp x13, 0
+    bgt 2f ; if gt, compare to key
+    beq 3f ; return 0
+1:
+    add w11, w11, 1
+    and w11, w11, w10
+    b 0b
+    
+2: ; do strcmp to check the key
+    mov x0, x13 ; current key
+    mov x1, x9 ; key
+    bl _m_strcmp ; clobbers x0, x1, x2, x3
+    cbnz x0, 1b
+
+    ldr x12, [x8, 16] ; load values array
+    add x0, x12, x11, lsl 3 ; return the address of entry
+    
+    ldp fp, lr, [sp], 16
+    ret
+3:
+    mov w0, wzr
+    ldp fp, lr, [sp], 16
+    ret
+
+; map in x0
+; key (char *) in x1
+; result in x0
 _m_remove:
 ; check key isn't null
     cmp x1, x0 ; if they're equal, this function won't work. It probably means they're both null
@@ -374,4 +439,5 @@ _m_strcmp: ; clobbers x0, x1, x2, x3
 
 .section __text,__cstring,cstring_literals
 debug_message: .asciz "insert_util called with map: %p, key: %s, and value: %lu\n"
-debug_message1: .asciz "w8-11: %u, %u, %u, %u\n"
+debug_message1: .asciz "m_contains: w8-11: %u, %u, %u, %u\n"
+debug_message2: .asciz "m_get_lvalue: w8-11: %u, %u, %u, %u\n"

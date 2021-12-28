@@ -1,7 +1,7 @@
 .text
 .globl _create_activation_stack
-.globl _pop_activation_stack
 .globl _set_return_cursor
+.globl _pop_activation_stack
 .globl _get_activation_stack
 .globl _start_variable_binding
 .globl _end_variable_binding
@@ -53,22 +53,6 @@ _create_activation_stack:
     adrp x8, _variable_binding_stack@page
     add x8, x8, _variable_binding_stack@pageoff
     str x0, [x8] ; save variable binding stack
-
-    ldp fp, lr, [sp], 16
-    ret
-
-; pushes new activation record to the stack
-_push_activation_stack:
-    stp fp, lr, [sp, -16]!
-
-    bl _create_activation_record
-    mov x1, x0 ; arg1 for push
-
-    adrp x8, _activation_stack@page
-    add x8, x8, _activation_stack@pageoff
-    ldr x0, [x8] ; load stack
-
-    bl _s_push ; push activation record to top of activation stack
 
     ldp fp, lr, [sp], 16
     ret

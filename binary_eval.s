@@ -4,12 +4,22 @@
 .globl _binary_eval
 .equ NUM_OPERATORS, TS_MOD - TS_ASSIGN
 
-; op2 in x0
-; op1 in x1
+; op2 in x0 
+; op1 in x1 
 ; operation token in x2
 ; return result in x0
 _binary_eval:
     ldr x2, [x2] ; load operation type
+
+    stp fp, lr, [sp, -16]!
+    stp x0, x1, [sp, -32]!
+    str x2, [sp, 16]
+    adrp x0, debug_message@page
+    add x0, x0, debug_message@pageoff
+    bl _printf
+    ldr x2, [sp, 16]
+    ldp x0, x1, [sp], 32
+    ldp fp, lr, [sp], 16
 
     sub x2, x2, TS_ASSIGN ; subtract assign
 
@@ -126,7 +136,7 @@ _ts_right:
     asr x0, x1, x0
     ret
 _ts_left:
-    lsr x0, x1, x0 
+    lsl x0, x1, x0 
     ret
 _ts_add:
     add x0, x1, x0 
@@ -156,7 +166,7 @@ _be_error:
 
 .section __text,__cstring,cstring_literals
 be_error: .asciz "error: invalid binary operator %lu with operands %lu and %lu\n"
-debug_message: .asciz "evaluating less than"
+debug_message: .asciz "called with op2, op1, operator: %lu, %lu, %lu\n"
 .data
 .p2align 3
 jump_table:

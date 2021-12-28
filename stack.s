@@ -118,7 +118,6 @@ _s_top:
 0:
     ; load current top
     ldr x9, [x0, 8]
-    sxtw x8, w8
     ldr x0, [x9, x8, lsl 3]
     ret
 
