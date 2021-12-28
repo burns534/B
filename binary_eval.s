@@ -26,26 +26,58 @@ _binary_eval:
     br x8
 
 _ts_assign:
+    str x0, [x1] ; store rvalue in lvalue
     ret
 _ts_and_a:
+    ldr x2, [x1] ; load value from lvalue
+    and x0, x2, x0 ; bitwise and
+    str x0, [x1] ; store new value in lvalue
     ret
 _ts_or_a:
+    ldr x2, [x1] ; load value from lvalue
+    orr x0, x2, x0 ; bitwise or
+    str x0, [x1] ; store new value in lvalue
     ret
 _ts_xor_a:
+    ldr x2, [x1] ; load value from lvalue
+    eor x0, x2, x0 ; exclusive or
+    str x0, [x1] ; store new value in lvalue
     ret
 _ts_add_a:
+    ldr x2, [x1] ; load value from lvalue
+    adds x0, x2, x0 ; signed addition
+    str x0, [x1] ; store new value in lvalue
     ret
 _ts_sub_a:
+    ldr x2, [x1] ; load value from lvalue
+    subs x0, x2, x0 ; signed subtraction
+    str x0, [x1] ; store new value in lvalue
     ret
 _ts_mul_a:
+    ldr x2, [x1] ; load value from lvalue
+    mul x0, x2, x0 ; signed multiply
+    str x0, [x1] ; store new value in lvalue
     ret
 _ts_div_a:
+    ldr x2, [x1] ; load value from lvalue
+    sdiv x0, x2, x0 ; signed divide
+    str x0, [x1] ; store new value in lvalue
     ret
 _ts_mod_a:
+    ldr x2, [x1] ; load value from lvalue
+    sdiv x3, x2, x0
+    msub x0, x3, x0, x2
+    str x0, [x1] ; store new value in lvalue
     ret
 _ts_right_a:
+    ldr x2, [x1] ; load value from lvalue
+    asr x0, x2, x0 ; arithmetic shift right
+    str x0, [x1] ; store new value in lvalue
     ret
 _ts_left_a:
+    ldr x2, [x1] ; load value from lvalue
+    lsl x0, x2, x0 ; logical shift left
+    str x0, [x1] ; store new value in lvalue
     ret
 _ts_logical_or:
     orr x0, x1, x0 ; bitwise or

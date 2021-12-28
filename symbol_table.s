@@ -3,6 +3,8 @@
 .globl _create_symbol_table
 .globl _enter_scope
 .globl _exit_scope
+.globl _get_variable_lvalue
+.globl _get_variable_rvalue
 .globl _get_entry
 .globl _save_entry
 .globl _get_symbol_table
@@ -49,12 +51,26 @@ _create_function_entry:
     ldp fp, lr, [sp], 32
     ret
 
+; identifier x0
+_get_variable_lvalue:
+    stp fp, lr, [sp, -16]!
+    bl _get_entry
+    add x0, x0, 8 ; offset
+    ldp fp, lr, [sp], 16
+
+_get_variable_rvalue:
+    stp fp, lr, [sp, -16]!
+    bl _get_entry
+    ldr x0, [x0, 8] ; offset
+    ldp fp, lr, [sp], 16
+
+
 ; identifier in x0
 ; pointer to result in x0
-_get_entry:
+_get_entry: ; don't clobber x1!!
     stp fp, lr, [sp, -48]!
     stp x19, x20, [sp, 32]
-    str x21, [sp, 16]
+    stp x21, x1, [sp, 16]
 
     mov x19, x0 ; identifier x19
 
@@ -101,7 +117,7 @@ _get_entry:
     mov x1, x19
     bl _m_get
 10:
-    ldr x21, [sp, 16]
+    ldp x21, x1, [sp, 16] ; don't clobber x1!!
     ldp x19, x20, [sp, 32]
     ldp fp, lr, [sp], 48
     ret
