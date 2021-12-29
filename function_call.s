@@ -43,6 +43,7 @@ _function_call:
     ldr x0, [x22] ; parameter stack for function
     bl _s_start_iterator ; get next parameter
 
+; could have error handling here to check for valid tokens in param exp
 ; bind parameters
 0:
     ldr x8, [x19, x21, lsl 3] ; load token
@@ -76,6 +77,14 @@ _function_call:
 
     add x0, x21, 1 ; return to token following close paren
 
+    ; assert next token is not an invalid token
+    ldr x9, [x19, x0, lsl 3]
+    ldr x8, [x9] ; type
+    cmp x8, TS_INTEGER
+    blt 3f
+    cmp x8, TS_EOF ; string and identifier are between int and eof
+    blt _function_call_invalid_token_error
+3:
     bl _set_return_cursor
 
     ldr x8, [x22, 8] ; load entry point
@@ -89,12 +98,19 @@ _function_call:
     add x21, x21, 1 ; skip return token
     str x21, [x20]
 
+    ldr x8, [x19, x21, lsl 3]
+    ldr x8, [x8] ; type
+    cmp x8, TS_SEMICOLON
+    bne 4f
+    mov x22, 1 ; return 1
+    b 5f
+4:
     mov x0, x19
     mov x1, x20
     bl _expression_eval ; probably terminated on semicolon but doesn't matter where
     ; return value in x0 here
     mov x22, x0 ; save it
-
+5:
     bl _pop_activation_stack
     str x0, [x20] ; set cursor to return location
 
@@ -123,8 +139,18 @@ _function_identifier_not_found_error:
     mov x0, xzr
     bl _exit
 
+_function_call_invalid_token_error:
+    ldr x9, [x9, 8]
+    stp x8, x9, [sp]
+    adrp x0, function_call_error2@page
+    add x0, x0, function_call_error2@pageoff
+    bl _printf
+
+    mov x0, xzr
+    bl _exit
 
 .section __text,__cstring,cstring_literals
 function_call_error1: .asciz "error: function call: symbol table entry not found for identifier %s\n"
-debug_message0: .asciz "function call with token %s\n"
-debug_message1: .asciz "returning %lu from function call\n"
+function_call_error2: .asciz "error: function call: invalid token following ), %lu: %s\n"
+debug_message0: .asciz "function call: called with token %s\n"
+debug_message1: .asciz "function call: returning %lu\n"

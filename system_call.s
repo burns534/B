@@ -7,14 +7,15 @@
 ; expected to be called pointing to expression that can be evaluated
 ; tokens in x0
 ; cursor pointer in x1
-; return expression evaluated parameter in x0
+; return expression evaluated parameter in x1
+; return success in x0
 _get_parameter:
     ldr x9, [x1]
     ldr x8, [x0, x9, lsl 3] ; load current token
     ldr x8, [x8] ; type
     cmp x8, TS_CLOSE_PAREN
     bne 0f
-    mov x0, xzr ; return zero if parenthesis found
+    mov x1, xzr ; return zero if parenthesis found
     ret 
 0:
     stp fp, lr, [sp, -32]!
@@ -25,17 +26,18 @@ _get_parameter:
 
     bl _expression_eval ; evaluate parameter
 
-    ldr x8, [x20]
+    ldr x8, [x20] ; load cursor
+
     ldr x9, [x19, x8, lsl 3] ; load token
-    ldr x9, [x9]
+    ldr x9, [x9] ; type
     cmp x9, TS_COMMA
     bne 1f
 
     ; if comma, advance cursor
     add x8, x8, 1
     str x8, [x20] ; update cursor
-
 1:
+    mov x1, 1
     ldp x19, x20, [sp, 16]
     ldp fp, lr, [sp], 32
     ret
@@ -66,11 +68,11 @@ _system_call:   ; called with cursor pointing to identifier
 0: 
     mov x0, x23
     ldr x1, [x22, x24, lsl 3] ; arg1
-    stp x0, x1, [sp, -16]!
-    adrp x0, message1@page
-    add x0, x0, message1@pageoff
-    bl _printf
-    ldp x0, x1, [sp], 16
+    ;stp x0, x1, [sp, -16]!
+    ;adrp x0, message1@page
+    ;add x0, x0, message1@pageoff
+    ;bl _printf
+    ;ldp x0, x1, [sp], 16
 
     bl _strcmp
     cbz x0, 1f
@@ -183,18 +185,14 @@ b_fprintf:
     mov x0, x19
     mov x1, x20
     bl _get_parameter
-    cbz x0, 2f
+    cbz x1, 2f
     mov x23, x0 ; save parameter
     mov x0, x19
     mov x1, x20
     bl _get_parameter
-    cbz x0, 1f
     stp x23, x0, [sp, -16]!
     add x24, x24, 16
     b 0b
-1:
-    str x23, [sp, -16]!
-    add x24, x24, 16
 2:
     mov x0, x21 ; file pointer
     mov x1, x22 ; format string
@@ -231,7 +229,7 @@ b_fscanf:
     mov x0, x19
     mov x1, x20
     bl _get_parameter
-    cbz x0, 2f
+    cbz x1, 2f
     mov x23, x0 ; save parameter
     mov x0, x19
     mov x1, x20
@@ -276,7 +274,7 @@ b_printf:
     mov x0, x19
     mov x1, x20
     bl _get_parameter
-    cbz x0, 2f
+    cbz x1, 2f
     mov x23, x0 ; save parameter
     mov x0, x19
     mov x1, x20
@@ -318,7 +316,7 @@ b_scanf:
     mov x0, x19
     mov x1, x20
     bl _get_parameter
-    cbz x0, 2f
+    cbz x1, 2f
     mov x23, x0 ; save parameter
     mov x0, x19
     mov x1, x20
@@ -970,3 +968,4 @@ qsort: .asciz "qsort"
 
 message: .asciz "printf called!!"
 message1: .asciz "system call: comparing identifier %s and table entry %s\n"
+debug_message: .asciz "expression evaluate returned on token %lu\n"

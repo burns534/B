@@ -220,6 +220,14 @@ _expression_eval:
     cmp x8, TS_CLOSE_PAREN
     bne 3f
 ; handle close paren
+; first check next token is not id, string, or integer
+    add x9, x20, 1
+    ldr x9, [x19, x9, lsl 3]
+    ldr x8, [x9] ; type
+    cmp x8, TS_INTEGER
+    blt 20f
+    cmp x8, TS_EOF ; string and identifier are between int and eof
+    blt _expression_eval_runtime_error5
 20:
     mov x0, x21 ; opstack
 ; check that the opstack isn't empty
@@ -278,13 +286,6 @@ _expression_eval:
 
     ; update cursor
     ldr x20, [x25]
-
-    adrp x0, debug_message7@page
-    add x0, x0, debug_message7@pageoff
-    str x20, [sp, -16]!
-    bl _printf
-    add sp, sp, 16
-
     b 0b
 5:
 
@@ -369,9 +370,16 @@ _expression_eval:
 
     bl _expression_eval ; evaluate argument for new
 
+    ; update cursor
+    ldr x20, [x25]
+
     bl _malloc ; allocate requested number of bytes
     ; return pointer is in x0
-    b 40b
+    mov x1, x0
+    mov x0, x22 ; outstack
+    bl _s_push
+
+    b 0b ; don't increment cursor
 
 ; now evaluate the rest of the stack
 0:
@@ -398,7 +406,7 @@ _expression_eval:
     mov x0, x22
     bl _s_destroy
 
-    str x19, [sp, -16]!
+    stp x19, x20, [sp, -16]!
     adrp x0, debug_message2@page
     add x0, x0, debug_message2@pageoff
     bl _printf
@@ -458,6 +466,17 @@ _expression_eval_runtime_error4:
     mov x0, xzr
     bl _exit
 
+_expression_eval_runtime_error5:
+    ldr x9, [x9, 8]
+    stp x8, x9, [sp]
+    adrp x0, exp_eval_error5@page
+    add x0, x0, exp_eval_error5@pageoff
+    bl _printf
+
+    mov x0, xzr
+    bl _exit
+
+
 ; call with cursor pointing to the first open bracket
 ; tokens in x0
 ; cursor in x1
@@ -489,15 +508,15 @@ exp_eval_error1: .asciz "error: expression_eval: outstack top != 0"
 exp_eval_error2: .asciz "error: expression_eval: top of opstack was not open paren"
 exp_eval_error3: .asciz "error: expression_eval: expected ] and found %lu instead\n"
 exp_eval_error4: .asciz "error: expression_eval: cannot assign to constant rvalue\n"
+exp_eval_error5: .asciz "error: expression_eval: invalid token following ), %lu: %s\n"
 primary_eval_error_message: .asciz "error: primary eval: encountered invalid token %lu\n"
 debug_message: .asciz "primary_eval result: %lu\n"
 debug_message1: .asciz "top of stack: %p\n"
-debug_message2: .asciz "expression eval returning %lu\n"
+debug_message2: .asciz "expression eval returning %lu at cursor %lu\n"
 debug_message3: .asciz "primary_eval: token: %s\n"
 debug_message4: .asciz "inside expression eval loop with token %s\n"
 debug_message5: .asciz "about to check for function call with token %s\n"
 debug_message6: .asciz "entered expression eval"
-debug_message7: .asciz "cursor: %lu\n"
 debug_message8: .asciz "didn't cause a seg fault"
 debug_message9: .asciz "primary_eval returning %lu\n"
 debug_message10: .asciz "got array lvalue: %lu\n"
