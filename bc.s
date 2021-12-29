@@ -172,7 +172,7 @@ _expression_eval:
 ; handle operator
 10:
     mov x0, x21 ; opstack
-    bl _s_top
+    bl _s_top ; doesn't clobber x12 ?
 
     stp x0, x12, [sp, -16]!
     adrp x0, debug_message1@page
@@ -180,6 +180,8 @@ _expression_eval:
     bl _printf
     mov x0, x21
     bl _print_stack
+    ldr x0, [sp]
+    bl _print_token
     ldp x0, x12, [sp], 16
 
     cbz x0, 11f ; if empty, break
@@ -204,7 +206,8 @@ _expression_eval:
     mov x0, x21 ; opstack
     mov x1, x12 ; operator token
     bl _s_push
-    b 4f
+    add x20, x20, 1
+    b 0b
 1:
     cmp x8, TS_OPEN_PAREN
     bne 2f
@@ -348,8 +351,6 @@ _expression_eval:
     ldr x8, [x8]
     cmp x8, TS_LOGICAL_OR
     blt 40f
-
-; problem with array dereferencing :(
     ldr x0, [x0] ; dereference lvalue
 40:
     mov x1, x0
@@ -428,7 +429,11 @@ _expression_eval_runtime_error:
 _expression_eval_runtime_error1:
     adrp x0, exp_eval_error1@page
     add x0, x0, exp_eval_error1@pageoff
-    bl _runtime_error
+    bl _puts
+    mov x0, x22
+    bl _print_stack
+    mov x0, xzr
+    bl _exit
 
 _expression_eval_runtime_error2:
     adrp x0, exp_eval_error2@page

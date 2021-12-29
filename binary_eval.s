@@ -8,18 +8,18 @@
 ; op1 in x1 
 ; operation token in x2
 ; return result in x0
-_binary_eval:
+_binary_eval: ; cannot clobber x12 !!
     ldr x2, [x2] ; load operation type
 
-    stp fp, lr, [sp, -16]!
-    stp x0, x1, [sp, -32]!
-    str x2, [sp, 16]
-    adrp x0, debug_message@page
-    add x0, x0, debug_message@pageoff
-    bl _printf
-    ldr x2, [sp, 16]
-    ldp x0, x1, [sp], 32
-    ldp fp, lr, [sp], 16
+    ;stp fp, lr, [sp, -16]!
+    ;stp x0, x1, [sp, -32]!
+    ;str x2, [sp, 16]
+    ;adrp x0, debug_message@page
+    ;add x0, x0, debug_message@pageoff
+    ;bl _printf
+    ;ldr x2, [sp, 16]
+    ;ldp x0, x1, [sp], 32
+    ;ldp fp, lr, [sp], 16
 
     sub x2, x2, TS_ASSIGN ; subtract assign
 

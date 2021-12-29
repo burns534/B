@@ -48,7 +48,7 @@ _s_create:
 
 ; accept stack in x0
 ; quad value in x1
-_s_push:
+_s_push: ; cannot clobber x12
     stp fp, lr, [sp, -32]!
     stp x19, x20, [sp, 16]
 
@@ -90,7 +90,7 @@ _s_push:
     ret
 ; accept stack in x0
 ; return value in x0
-_s_pop:
+_s_pop: ; cannot clobber x12
     ; load current count
     ldr w8, [x0]
     ; guard to make sure stack isn't empty
@@ -109,7 +109,7 @@ _s_pop:
     ret
 ; stack in x0
 ; value in x0
-_s_top:
+_s_top: ; cannot clobber x12
     ldr w8, [x0]
     cmp w8, -1
     bgt 0f

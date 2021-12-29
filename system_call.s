@@ -2,7 +2,7 @@
 .text
 .p2align 2
 .globl _system_call
-.equ FUNCTION_NAMES_COUNT, 12
+.equ FUNCTION_NAMES_COUNT, 108
 
 ; expected to be called pointing to expression that can be evaluated
 ; tokens in x0
@@ -109,10 +109,151 @@ _system_call:   ; called with cursor pointing to identifier
     ldp fp, lr, [sp], 64
     ret
 
-b_fprintf:
+; ---- NOTE -----
+; all of the following procedures accept
+; token array pointer in x0
+; cursor pointer in x1
+
+b_remove:
+    ret
+b_rename:
+    ret
+b_tmpfile:
+    ret
+b_tmpnam:
     ret
 
-b_fputs:
+b_fclose:
+    stp fp, lr, [sp, -16]!
+    bl _get_parameter ; file handle
+    bl _fclose
+    ldp fp, lr, [sp], 16
+    ret
+b_fflush:
+    ret
+b_fopen:
+    stp fp, lr, [sp, -48]!
+    str x21, [sp, 32]
+    stp x19, x20, [sp, 16]
+
+    mov x19, x0; tokens
+    mov x20, x1 ; cursor ref
+
+    bl _get_parameter ; get filename
+    mov x21, x0 ; save
+
+    mov x0, x19
+    mov x1, x20
+    bl _get_parameter ; get mode string
+    mov x1, x0 ; arg1
+    mov x0, x21 ; arg0
+    bl _fopen ; return file handle in x0
+
+    ldp x19, x20, [sp, 16]
+    ldr x21, [sp, 32]
+    ldp fp, lr, [sp], 48
+    ret
+b_freopen:
+    ret
+b_setbuf:
+    ret 
+b_setvbuf:
+    ret
+
+b_fprintf:
+    stp fp, lr, [sp, -64]!
+    stp x23, x24, [sp, 48]
+    stp x21, x22, [sp, 32]
+    stp x19, x20, [sp, 16]
+
+    mov x19, x0 ; tokens
+    mov x20, x1 ; cursor reference
+
+    bl _get_parameter ; get file pointer
+    mov x21, x0
+
+    mov x0, x19
+    mov x1, x20
+    bl _get_parameter ; get parameter for format string
+    mov x22, x0 ; save parameter
+
+    mov x24, xzr ; keep track of stack offset
+
+0:
+    mov x0, x19
+    mov x1, x20
+    bl _get_parameter
+    cbz x0, 2f
+    mov x23, x0 ; save parameter
+    mov x0, x19
+    mov x1, x20
+    bl _get_parameter
+    cbz x0, 1f
+    stp x23, x0, [sp, -16]!
+    add x24, x24, 16
+    b 0b
+1:
+    str x23, [sp, -16]!
+    add x24, x24, 16
+2:
+    mov x0, x21 ; file pointer
+    mov x1, x22 ; format string
+    bl _fprintf
+
+    add sp, sp, x24 ; restore stack pointer
+
+    ldp x19, x20, [sp, 16]
+    ldp x21, x22, [sp, 32]
+    ldp x23, x24, [sp, 48]
+    ldp fp, lr, [sp], 64
+    ret
+
+b_fscanf:
+    stp fp, lr, [sp, -64]!
+    stp x23, x24, [sp, 48]
+    stp x21, x22, [sp, 32]
+    stp x19, x20, [sp, 16]
+
+    mov x19, x0 ; tokens
+    mov x20, x1 ; cursor reference
+
+    bl _get_parameter ; get file pointer
+    mov x21, x0
+
+    mov x0, x19
+    mov x1, x20
+    bl _get_parameter ; get parameter for format string
+    mov x22, x0 ; save parameter
+
+    mov x24, xzr ; keep track of stack offset
+
+0:
+    mov x0, x19
+    mov x1, x20
+    bl _get_parameter
+    cbz x0, 2f
+    mov x23, x0 ; save parameter
+    mov x0, x19
+    mov x1, x20
+    bl _get_parameter
+    cbz x0, 1f
+    stp x23, x0, [sp, -16]!
+    add x24, x24, 16
+    b 0b
+1:
+    str x23, [sp, -16]!
+    add x24, x24, 16
+2:
+    mov x0, x21 ; file pointer
+    mov x1, x22 ; format string
+    bl _fscanf
+
+    add sp, sp, x24 ; restore stack pointer
+
+    ldp x19, x20, [sp, 16]
+    ldp x21, x22, [sp, 32]
+    ldp x23, x24, [sp, 48]
+    ldp fp, lr, [sp], 64
     ret
 
 ; tokens x0
@@ -159,7 +300,261 @@ b_printf:
     ldp fp, lr, [sp], 64
     ret
 
+b_scanf:
+    stp fp, lr, [sp, -64]!
+    stp x23, x24, [sp, 48]
+    stp x21, x22, [sp, 32]
+    stp x19, x20, [sp, 16]
+
+    mov x19, x0 ; tokens
+    mov x20, x1 ; cursor reference
+
+    bl _get_parameter ; get parameter for format string
+    mov x22, x0 ; save parameter
+
+    mov x24, xzr ; keep track of stack offset
+
+0:
+    mov x0, x19
+    mov x1, x20
+    bl _get_parameter
+    cbz x0, 2f
+    mov x23, x0 ; save parameter
+    mov x0, x19
+    mov x1, x20
+    bl _get_parameter
+    cbz x0, 1f
+    stp x23, x0, [sp, -16]!
+    add x24, x24, 16
+    b 0b
+1:
+    str x23, [sp, -16]!
+    add x24, x24, 16
+2:
+    mov x0, x22
+    bl _scanf
+
+    add sp, sp, x24 ; restore stack pointer
+
+    ldp x19, x20, [sp, 16]
+    ldp x21, x22, [sp, 32]
+    ldp x23, x24, [sp, 48]
+    ldp fp, lr, [sp], 64
+    ret
+
+b_sprintf:
+    ret
+b_sscanf:
+    ret
+b_vfprintf:
+    ret
+b_vprintf:
+    ret
+b_vsprintf:
+    ret
+
+b_fgetc:
+    ret
+b_fgets:
+    ret
+b_fputc:
+    ret
+b_fputs:
+    ret
+b_getc:
+    ret
+b_getchar:
+    ret
+b_gets:
+    ret
+b_putc:
+    ret
+b_putchar:
+    ret
 b_puts:
+    ret
+b_ungetc:
+    ret
+
+b_fread:
+    ret
+b_fwrite:
+    ret
+
+b_fgetpos:
+    ret
+b_fseek:
+    ret
+b_fsetpos:
+    ret
+b_ftell:
+    ret
+b_rewind:
+    ret
+
+b_clearerr:
+    ret
+b_feof:
+    ret
+b_ferror:
+    ret
+b_perror:
+    ret
+
+; stdio
+b_isalnum:
+    ret
+b_isalpha:
+    ret
+b_iscntrl:
+    ret
+b_isdigit:
+    ret
+b_isgraph:
+    ret
+b_islower:
+    ret
+b_isprint:
+    ret
+b_ispunct:
+    ret
+b_isspace:
+    ret
+b_isupper:
+    ret
+b_isxdigit:
+    ret
+
+b_tolower:
+    ret
+b_toupper:
+    ret
+
+; cmath
+b_cos:
+    ret
+b_sin:
+    ret
+b_tan:
+    ret
+b_acos:
+    ret
+b_asin:
+    ret
+b_atan:
+    ret
+b_atan2:
+    ret
+
+b_cosh:
+    ret
+b_sinh:
+    ret
+b_tanh:
+    ret
+
+b_exp:
+    ret
+b_frexp:
+    ret
+b_ldexp:
+    ret
+b_log:
+    ret
+b_log10:
+    ret
+b_modf:
+    ret
+
+b_pow:
+    ret
+b_sqrt:
+    ret
+
+b_ceil:
+    ret
+b_floor:
+    ret
+b_fmod:
+    ret
+
+b_fabs:
+    ret
+b_abs:
+    ret
+
+; cstring
+b_memcpy:
+    ret
+b_memmove:
+    ret
+b_strcpy:
+    ret
+b_strncpy:
+    ret
+
+b_strcat:
+    ret
+b_strncat:
+    ret
+
+b_memcmp:
+    ret
+b_strcmp:
+    ret
+b_strcoll:
+    ret
+b_strncmp:
+    ret
+b_strxfrm:
+    ret
+
+b_memchr:
+    ret
+b_strchr:
+    ret
+b_strcspn:
+    ret
+b_strpbrk:
+    ret
+b_strrchr:
+    ret
+b_strspn:
+    ret
+b_strstr:
+    ret
+b_strtok:
+    ret
+
+b_memset:
+    ret
+b_strerror:
+    ret
+b_strlen:
+    ret
+
+; stdlib
+b_atof:
+    ret
+b_atoi:
+    ret
+b_atol:
+    ret
+b_strtod:
+    ret
+b_strtol:
+    ret
+b_strtoul:
+    ret
+
+b_rand:
+    ret
+b_srand:
+    ret
+
+b_bsearch:
+    ret
+b_qsort:
     ret
 
 
@@ -202,7 +597,7 @@ function_names:
     .quad putchar
     .quad puts
     .quad ungetc
-
+; 30
     .quad fread
     .quad fwrite
 
@@ -216,6 +611,7 @@ function_names:
     .quad feof
     .quad ferror
     .quad perror
+; 41
 ; ctype.h from https://www.cplusplus.com/reference/cctype/
     .quad isalnum
     .quad isalpha
@@ -231,7 +627,7 @@ function_names:
 
     .quad tolower
     .quad toupper
-
+; 54
 ; cmath https://www.cplusplus.com/reference/cmath/
     .quad cos
     .quad sin
@@ -244,7 +640,7 @@ function_names:
     .quad cosh
     .quad sinh
     .quad tanh
-
+; 64
     .quad exp
     .quad frexp
     .quad ldexp
@@ -266,7 +662,7 @@ function_names:
     .quad memmove
     .quad strcpy
     .quad strncpy
-
+; 81
     .quad strcat
     .quad strncat
 
@@ -284,7 +680,7 @@ function_names:
     .quad strspn
     .quad strstr
     .quad strtok
-
+; 95
     .quad memset
     .quad strerror
     .quad strlen
@@ -303,9 +699,7 @@ function_names:
 
     .quad bsearch
     .quad qsort
-
-    .quad abs
-
+; 108 I think
 jump_table:
     .quad b_remove
     .quad b_rename
@@ -325,8 +719,8 @@ jump_table:
     .quad b_scanf
     .quad b_sprintf
     .quad b_sscanf
-    .quad b_fprintf
-    .quad b_printf
+    .quad b_vfprintf
+    .quad b_vprintf
     .quad b_vsprintf
 
     .quad b_fgetc
@@ -439,8 +833,6 @@ jump_table:
     .quad b_bsearch
     .quad b_qsort
 
-    .quad b_abs
-
 .section __text,__cstring,cstring_literals
 remove: .asciz "remove"
 rename: .asciz "rename"
@@ -473,7 +865,7 @@ getchar: .asciz "getchar"
 gets: .asciz "gets"
 putc: .asciz "putc"
 putchar: .asciz "putchar"
-puts: .asicz "puts"
+puts: .asciz "puts"
 ungetc: .asciz "ungetc"
 
 fread: .asciz "fread"
@@ -489,8 +881,92 @@ clearerr: .asciz "clearerr"
 feof: .asciz "feof"
 ferror: .asciz "ferror"
 perror: .asciz "perror"
+; ctype
+isalnum: .asciz "isalnum"
+isalpha: .asciz "isalpha"
+iscntrl: .asciz "iscntrl"
+isdigit: .asciz "isdigit"
+isgraph: .asciz "isgraph"
+islower: .asciz "islower"
+isprint: .asciz "isprint"
+ispunct: .asciz "ispunct"
+isspace: .asciz "isspace"
+isupper: .asciz "isupper"
+isxdigit: .asciz "isxdigit"
 
+tolower: .asciz "tolower"
+toupper: .asciz "tolower"
 
+; cmath
+cos: .asciz "cos"
+sin: .asciz "sin"
+tan: .asciz "tan"
+acos: .asciz "acos"
+asin: .asciz "asin"
+atan: .asciz "atan"
+atan2: .asciz "atan2"
+
+cosh: .asciz "cosh"
+sinh: .asciz "sinh"
+tanh: .asciz "tanh"
+
+exp: .asciz "exp"
+frexp: .asciz "frexp"
+ldexp: .asciz "ldexp"
+log: .asciz "log"
+log10: .asciz "log10"
+modf: .asciz "modf"
+
+pow: .asciz "pow"
+sqrt: .asciz "sqrt"
+
+ceil: .asciz "ceil"
+floor: .asciz "floor"
+fmod: .asciz "fmod"
+
+fabs: .asciz "fabs"
+abs: .asciz "abs"
+; cstring
+memcpy: .asciz "memcpy"
+memmove: .asciz "memmove"
+strcpy: .asciz "strcpy"
+strncpy: .asciz "strncpy"
+
+strcat: .asciz "strcat"
+strncat: .asciz "strncat"
+
+memcmp: .asciz "memcmp"
+strcmp: .asciz "strcmp"
+strcoll: .asciz "strcoll"
+strncmp: .asciz "strncmp"
+strxfrm: .asciz "strxfrm"
+
+memchr: .asciz "memchr"
+strchr: .asciz "strchr"
+strcspn: .asciz "strcspn"
+strpbrk: .asciz "strpbrk"
+strrchr: .asciz "strrchr"
+strspn: .asciz "strspn"
+strstr: .asciz "strstr"
+strtok: .asciz "strtok"
+
+memset: .asciz "memset"
+strerror: .asciz "strerror"
+strlen: .asciz "strle"
+
+; cstdlib
+atof: .asciz "atof"
+atoi: .asciz "atoi"
+atol: .asciz "atol"
+strtod: .asciz "strtod"
+strtol: .asciz "strtol"
+strtoul: .asciz "strtoul"
+
+rand: .asciz "rand"
+srand: .asciz "srand"
+
+bsearch: .asciz "bsearch"
+qsort: .asciz "qsort"
 
 message: .asciz "printf called!!"
 message1: .asciz "system call: comparing identifier %s and table entry %s\n"

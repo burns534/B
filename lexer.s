@@ -301,6 +301,9 @@ _lex:
     cmp w20, ','
     mov w24, TS_COMMA
     beq 1f
+    cmp w20, '@'
+    mov w24, TS_ADR
+    beq 1f
 
     bl _error
 
